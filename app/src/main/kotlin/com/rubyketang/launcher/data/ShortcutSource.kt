@@ -72,12 +72,13 @@ class ShortcutSource(
         val launcherActivity = launcherApps.getActivityList(pkg, user).firstOrNull()
         val appLabel = appLabels.getOrPut(pkg) { launcherActivity?.label?.toString() ?: pkg }
         val id = "shortcut://$pkg/$id"
+        val label = "$appLabel → $shortLabel"
         return Target(
             id = id,
             kind = Kind.SHORTCUT,
-            label = "$appLabel → $shortLabel",
+            label = label,
             aliases = userAliases()[id] ?: emptyList(),
-            tags = setOf(tags.resolve(id, pkg, -1)),
+            tags = tags.resolve(id, label, pkg, -1),
             iconUri = launcherActivity?.componentName?.let { "icon://$pkg/${it.className}" },
             launch = LaunchSpec(id),
         )

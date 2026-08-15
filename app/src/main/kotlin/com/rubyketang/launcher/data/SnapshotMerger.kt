@@ -1,5 +1,7 @@
 package com.rubyketang.launcher.data
 
+import com.rubyketang.launcher.engine.tag.TagResolver
+
 /**
  * P2-3 本地优先合并。
  *
@@ -27,5 +29,8 @@ object SnapshotMerger {
         recommendedSlotState = remote.recommendedSlotState + local.recommendedSlotState,
         recommendationExcludedUntil = remote.recommendationExcludedUntil + local.recommendationExcludedUntil,
         recommendedOccupants = remote.recommendedOccupants + local.recommendedOccupants,
+        // §3.2.3：自定义分类也是本地明确配置，取并集（去重、封顶 8 个），不丢本机新建的。
+        customCategories = (local.customCategories + remote.customCategories).distinct()
+            .take(TagResolver.MAX_CUSTOM_CATEGORIES),
     )
 }

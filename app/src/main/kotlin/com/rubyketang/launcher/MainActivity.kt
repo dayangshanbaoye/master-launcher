@@ -1,7 +1,10 @@
 package com.rubyketang.launcher
 
 import android.os.Bundle
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.app.role.RoleManager
 import android.os.Build
 import android.Manifest
@@ -50,12 +53,24 @@ class MainActivity : ComponentActivity() {
         if (granted) requestBluetoothEnable()
     }
 
+    /**
+     * 05-product-spec.md §2.5 海报模式"每次解锁"切换时机——启动器不是系统进程，只有前台存活时才
+     * 能收到 ACTION_USER_PRESENT，动态注册（不进 Manifest）就够用：本应用作为默认桌面几乎总在
+     * 前台或刚从后台切回，跟无障碍失效自检（§4.5）同样的覆盖率取舍。
+     */
+    private val unlockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            state.onScreenUnlocked()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         state = LauncherState(applicationContext)
         lifecycleScope.launch {
             state.init()
+            state.onScreenUnlocked() // 冷启动首次进 Canvas 等价于一次"看到展示区"，建立轮换基准
             state.importSharedIntent(intent)
         }
         setContent {
@@ -63,6 +78,12 @@ class MainActivity : ComponentActivity() {
         }
         requestHomeRoleIfNeeded()
         hideNavigationBar()
+        registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT))
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        runCatching { unregisterReceiver(unlockReceiver) }
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -38,7 +38,7 @@ message RecommendedSlotStateProto {
 message LauncherStateProto {
   repeated TargetProto targets = 1;
   map<string, UsageEventsProto> usage = 2;
-  map<string, string> tag_overrides = 3;
+  reserved 3;                                          // 原单值 tag_overrides，§3.2.2 多归属后由字段 15 取代
   map<string, string> gestures = 4;
   repeated string pins = 5;
   map<string, StringListProto> user_aliases = 6;       // P1-4
@@ -49,4 +49,6 @@ message LauncherStateProto {
   map<int32, RecommendedSlotStateProto> recommended_slot_state = 12; // §2.3：推荐簇迟滞状态，key 是槽位 0..3
   map<string, int64> recommendation_excluded_until = 13; // §2.3：长按推荐槽"排除"，30 天内不再推荐
   map<int32, string> recommended_occupants = 14;       // §2.3：推荐簇当前在位者，key 是槽位 0..3，缺失 = 空槽
+  map<string, StringListProto> tag_overrides = 15;     // §3.2.2/§3.2.3：条目 → 手动分类集合（多归属），取代字段 3
+  repeated string custom_categories = 16;              // §3.2.3：用户自建分类，上限 8 个
 }

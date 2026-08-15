@@ -44,6 +44,8 @@ dependencies {
 
     implementation("androidx.datastore:datastore:1.1.1")
     implementation("com.google.protobuf:protobuf-javalite:3.25.5")
+    // §2.5 展示区图片来源：SAF 选文件夹后用 DocumentFile 列目录，不申请 READ_MEDIA_IMAGES。
+    implementation("androidx.documentfile:documentfile:1.0.1")
 
     testImplementation(kotlin("test"))
     testImplementation("junit:junit:4.13.2")

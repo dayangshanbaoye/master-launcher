@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.rubyketang.launcher.LauncherState
-import com.rubyketang.launcher.engine.tag.TagResolver
 import com.rubyketang.launcher.model.Target
 import com.rubyketang.launcher.ui.theme.Palette
 
@@ -58,8 +57,10 @@ fun TargetContextMenu(
                     if (!state.pinRecommendedToFixed(target.id)) evicting = true else onDismiss()
                 }
             )
-            TagResolver.ALL.forEach { category ->
-                add(MenuItem("改分类 → $category") { state.overrideTag(target.id, category) })
+            // §3.2.3 单条编辑：多选勾选，不用确认；keepOpen 让菜单留在原地方便连续勾多个。
+            state.allTagCategories().forEach { category ->
+                val checked = target.tags.any { it.name == category }
+                add(MenuItem("${if (checked) "✓" else "·"} $category", keepOpen = true) { state.toggleTag(target, category) })
             }
             state.dndActionsFor(target).forEach { action ->
                 add(MenuItem(action.label) { state.toggleDnd(action.tag) })

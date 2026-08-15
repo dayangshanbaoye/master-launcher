@@ -42,14 +42,17 @@ import com.rubyketang.launcher.CanvasSlots
 import com.rubyketang.launcher.LauncherState
 import com.rubyketang.launcher.LauncherSurface
 import com.rubyketang.launcher.data.Handedness
+import com.rubyketang.launcher.data.ShowcaseMode
 import com.rubyketang.launcher.data.TwoFingerDownAction
 import com.rubyketang.launcher.engine.calendar.LunarCalendar
 import com.rubyketang.launcher.engine.canvas.ClockFormatter
+import com.rubyketang.launcher.engine.showcase.ShowcaseSwitchTiming
 import com.rubyketang.launcher.model.Target
 import com.rubyketang.launcher.ui.ContextMenu
 import com.rubyketang.launcher.ui.MenuItem
 import com.rubyketang.launcher.ui.TargetContextMenu
 import com.rubyketang.launcher.ui.gesture.quickReferenceLongPress
+import com.rubyketang.launcher.ui.showcase.ShowcaseArea
 import com.rubyketang.launcher.ui.theme.Dimens
 import com.rubyketang.launcher.ui.theme.LocalUiScale
 import com.rubyketang.launcher.ui.theme.Palette
@@ -78,6 +81,7 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
     val canvasSlotVersion by state.canvasSlotVersion.collectAsState()
     val accessibilityGranted by state.accessibilityGranted.collectAsState()
     val handedness by state.preferences.handedness.collectAsState()
+    val showcaseMode by state.preferences.showcaseMode.collectAsState()
     val onboardingActive by state.onboardingActive.collectAsState()
     val defaultLauncherChanged by state.defaultLauncherChanged.collectAsState()
     val slots by produceState(
@@ -88,6 +92,8 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
     }
     // §4.5：每次回到 Canvas 重新组合时刷新一次无障碍授权状态（国产 ROM 后台清理会静默关闭服务）。
     androidx.compose.runtime.LaunchedEffect(Unit) { state.refreshAccessibilityStatus() }
+    // 文件夹内容可能在离开 Canvas 期间被增删（用户去系统相册管理了一下），回来重新列一次。
+    androidx.compose.runtime.LaunchedEffect(Unit) { state.refreshShowcasePhotos() }
     var menuTarget by remember { mutableStateOf<Target?>(null) }
     var slotAction by remember { mutableStateOf<SlotAction?>(null) }
     var quickReferenceVisible by remember { mutableStateOf(false) }
@@ -104,6 +110,8 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
     ) {
         Column(Modifier.fillMaxSize()) {
             ClockArea(state, palette)
+
+            ShowcaseArea(state, palette, Modifier.padding(top = 14.dp))
 
             if (defaultLauncherChanged) {
                 DefaultLauncherBanner(state, palette, onSetDefaultLauncher, Modifier.padding(top = 14.dp))
@@ -146,15 +154,21 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
                         onLongPressRecommended = { index, target -> slotAction = SlotAction.RecommendedMenu(index, target) },
                     )
                 }
-                Row(Modifier.fillMaxWidth()) {
-                    if (handedness == Handedness.LEFT) {
-                        recommendedColumn(Modifier.weight(1f))
-                        Spacer(Modifier.width(24.dp))
-                        fixedColumn(Modifier.weight(1f))
-                    } else {
-                        fixedColumn(Modifier.weight(1f))
-                        Spacer(Modifier.width(24.dp))
-                        recommendedColumn(Modifier.weight(1f))
+                // §2.5：相册墙模式下"app 槽自动减为 4 个（仅保留固定簇）"——相册墙已经是一个独立的
+                // 视觉重心，8 槽会跟它打架；海报模式不占额外视觉分量，维持 8 槽固定+推荐簇布局。
+                if (showcaseMode == ShowcaseMode.WALL) {
+                    fixedColumn(Modifier.fillMaxWidth())
+                } else {
+                    Row(Modifier.fillMaxWidth()) {
+                        if (handedness == Handedness.LEFT) {
+                            recommendedColumn(Modifier.weight(1f))
+                            Spacer(Modifier.width(24.dp))
+                            fixedColumn(Modifier.weight(1f))
+                        } else {
+                            fixedColumn(Modifier.weight(1f))
+                            Spacer(Modifier.width(24.dp))
+                            recommendedColumn(Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -575,7 +589,7 @@ private fun QuickReferenceOverlay(
 /**
  * 05-product-spec.md §2.4 设置入口：分组固定为 桌面/手势/时钟/相册/数据/关于。
  * 纪律条款（CLAUDE.md 红线 #5）：只放系统级开关，排序权重/分类规则/迟滞天数这类引擎参数
- * 一律不进这里。相册（Wave 5）、数据（Wave 6）还没做，先占位，免得这张 Sheet 被推倒重做。
+ * 一律不进这里。数据（Wave 6）还没做，先占位，免得这张 Sheet 被推倒重做。
  */
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -592,6 +606,14 @@ private fun HomeSettingsSheet(
     val showWeekday by state.preferences.showWeekday.collectAsState()
     val showDate by state.preferences.showDate.collectAsState()
     val showLunar by state.preferences.showLunar.collectAsState()
+    val showcaseMode by state.preferences.showcaseMode.collectAsState()
+    val showcaseSwitchTiming by state.preferences.showcaseSwitchTiming.collectAsState()
+    val showcaseFolderUri by state.preferences.showcaseFolderUri.collectAsState()
+    // 授权同样交给 LauncherState.setShowcaseFolder（ShowcaseSource.persistPermission）处理，
+    // 跟 ShowcaseArea 里的文件夹选择器共用同一条数据层路径，设置页这里只负责起选择器。
+    val pickShowcaseFolder = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree(),
+    ) { uri -> if (uri != null) state.setShowcaseFolder(uri) }
 
     // fillMaxSize + clickable(onDismiss) 吃掉浮层范围内所有触摸——不然内容行之间的空隙会让点击
     // 穿透到背后的 Canvas，误触发 app 图标（真机测试踩到过，见 ContextMenu.kt 已有的同款写法）。
@@ -658,7 +680,30 @@ private fun HomeSettingsSheet(
                 ToggleRow("农历", showLunar, palette, state.preferences::setShowLunar)
             }
             SettingsGroup("相册", palette) {
-                BasicText("即将支持", style = TextStyle(color = palette.fg2, fontSize = Type.Secondary))
+                Row {
+                    ShowcaseModeOption("海报", ShowcaseMode.POSTER, showcaseMode, palette, state::setShowcaseMode)
+                    ShowcaseModeOption("相册墙", ShowcaseMode.WALL, showcaseMode, palette, state::setShowcaseMode)
+                }
+                SettingsAction(
+                    if (showcaseFolderUri == null) "选择图片文件夹" else "更换图片文件夹",
+                    palette,
+                    { pickShowcaseFolder.launch(null) },
+                    topPadding = 10.dp,
+                )
+                if (showcaseMode == ShowcaseMode.POSTER) {
+                    val timingLabel = when (showcaseSwitchTiming) {
+                        ShowcaseSwitchTiming.EVERY_UNLOCK -> "每次解锁"
+                        ShowcaseSwitchTiming.DAILY -> "每天一次"
+                        ShowcaseSwitchTiming.MANUAL -> "手动"
+                    }
+                    SettingsAction(
+                        "切换时机 · $timingLabel",
+                        palette,
+                        state.preferences::cycleShowcaseSwitchTiming,
+                        topPadding = 10.dp,
+                        accented = false,
+                    )
+                }
             }
             SettingsGroup("数据", palette) {
                 BasicText("即将支持", style = TextStyle(color = palette.fg2, fontSize = Type.Secondary))
@@ -705,6 +750,25 @@ private fun ToggleRow(label: String, checked: Boolean, palette: Palette, onToggl
             .combinedClickable(onClick = { onToggle(!checked) })
             .padding(top = 8.dp),
         style = TextStyle(color = if (checked) palette.fg else palette.fg2, fontSize = Type.Item),
+    )
+}
+
+@Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun ShowcaseModeOption(
+    label: String,
+    value: ShowcaseMode,
+    current: ShowcaseMode,
+    palette: Palette,
+    onSelect: (ShowcaseMode) -> Unit,
+) {
+    val selected = value == current
+    BasicText(
+        "${if (selected) "✓" else "·"} $label",
+        Modifier
+            .combinedClickable(onClick = { onSelect(value) })
+            .padding(end = 22.dp),
+        style = TextStyle(color = if (selected) palette.accent else palette.fg2, fontSize = Type.Item),
     )
 }
 
