@@ -21,5 +21,11 @@ object SnapshotMerger {
         },
         dndHiddenUntil = remote.dndHiddenUntil + local.dndHiddenUntil,
         syncEnabled = local.syncEnabled || remote.syncEnabled,
+        // §2.3：固定簇是"用户钉死"的本机布局决定，本地优先；推荐簇迟滞状态和排除列表同理，
+        // 不该被另一台设备的历史覆盖掉本机正在累计的天数。
+        fixedSlots = remote.fixedSlots + local.fixedSlots,
+        recommendedSlotState = remote.recommendedSlotState + local.recommendedSlotState,
+        recommendationExcludedUntil = remote.recommendationExcludedUntil + local.recommendationExcludedUntil,
+        recommendedOccupants = remote.recommendedOccupants + local.recommendedOccupants,
     )
 }

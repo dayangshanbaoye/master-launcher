@@ -48,6 +48,14 @@ class LauncherPreferences(context: Context) {
     private val _showLunar = MutableStateFlow(storage.getBoolean(SHOW_LUNAR, false))
     val showLunar: StateFlow<Boolean> = _showLunar
 
+    // §4.2 冷启动引导只做一次；§4.6 默认桌面重置横幅状态。
+    private val _onboardingDone = MutableStateFlow(storage.getBoolean(ONBOARDING_DONE, false))
+    val onboardingDone: StateFlow<Boolean> = _onboardingDone
+    private val _wasDefaultLauncherConfirmed = MutableStateFlow(storage.getBoolean(WAS_DEFAULT_LAUNCHER_CONFIRMED, false))
+    val wasDefaultLauncherConfirmed: StateFlow<Boolean> = _wasDefaultLauncherConfirmed
+    private val _defaultLauncherBannerDismissedAt = MutableStateFlow(storage.getLong(DEFAULT_LAUNCHER_BANNER_DISMISSED_AT, 0L))
+    val defaultLauncherBannerDismissedAt: StateFlow<Long> = _defaultLauncherBannerDismissedAt
+
     fun setFontScale(scale: Float) {
         val clean = scale.coerceIn(MIN_SCALE, MAX_SCALE)
         _fontScale.value = clean
@@ -74,6 +82,21 @@ class LauncherPreferences(context: Context) {
         storage.edit().putBoolean(key, value).apply()
     }
 
+    fun setOnboardingDone(value: Boolean) {
+        _onboardingDone.value = value
+        storage.edit().putBoolean(ONBOARDING_DONE, value).apply()
+    }
+
+    fun setWasDefaultLauncherConfirmed(value: Boolean) {
+        _wasDefaultLauncherConfirmed.value = value
+        storage.edit().putBoolean(WAS_DEFAULT_LAUNCHER_CONFIRMED, value).apply()
+    }
+
+    fun setDefaultLauncherBannerDismissedAt(value: Long) {
+        _defaultLauncherBannerDismissedAt.value = value
+        storage.edit().putLong(DEFAULT_LAUNCHER_BANNER_DISMISSED_AT, value).apply()
+    }
+
     companion object {
         const val MIN_SCALE = 0.85f
         const val MAX_SCALE = 1.30f
@@ -83,5 +106,8 @@ class LauncherPreferences(context: Context) {
         private const val SHOW_WEEKDAY = "show_weekday"
         private const val SHOW_DATE = "show_date"
         private const val SHOW_LUNAR = "show_lunar"
+        private const val ONBOARDING_DONE = "onboarding_done"
+        private const val WAS_DEFAULT_LAUNCHER_CONFIRMED = "was_default_launcher_confirmed"
+        private const val DEFAULT_LAUNCHER_BANNER_DISMISSED_AT = "default_launcher_banner_dismissed_at"
     }
 }

@@ -24,8 +24,20 @@ fun TargetContextMenu(
     onDismiss: () -> Unit,
 ) {
     var aliasing by remember { mutableStateOf(false) }
+    var evicting by remember { mutableStateOf(false) }
     if (aliasing) {
         AliasInput(state, target, palette, onDismiss)
+        return
+    }
+    if (evicting) {
+        ContextMenu(
+            title = "钉到首页 · 替换哪个？",
+            palette = palette,
+            onDismiss = onDismiss,
+            items = state.fixedSlotTargets().mapIndexedNotNull { index, occupant ->
+                occupant?.let { MenuItem(it.label) { state.setFixedSlot(index, target.id) } }
+            },
+        )
         return
     }
 
@@ -40,6 +52,12 @@ fun TargetContextMenu(
                 }
             )
             add(MenuItem("记住叫法…", keepOpen = true) { aliasing = true })
+            // §2.3：Search/Browse 长按也能直接钉到首页固定簇，不用非得先在 Canvas 里长按推荐槽。
+            add(
+                MenuItem("钉到首页", keepOpen = true) {
+                    if (!state.pinRecommendedToFixed(target.id)) evicting = true else onDismiss()
+                }
+            )
             TagResolver.ALL.forEach { category ->
                 add(MenuItem("改分类 → $category") { state.overrideTag(target.id, category) })
             }

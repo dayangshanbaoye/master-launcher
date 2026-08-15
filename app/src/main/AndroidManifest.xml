@@ -17,6 +17,12 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- §4.6 默认桌面重置自检：不声明这条，API 30+ 包可见性过滤会让 resolveActivity()
+             看不到别的桌面 app，永远把自己解析成默认桌面，banner 条件永远不成立。 -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
     </queries>
 
     <application

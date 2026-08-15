@@ -6,6 +6,7 @@ import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
 import com.google.protobuf.InvalidProtocolBufferException
 import com.rubyketang.launcher.data.proto.LauncherStateProto
+import com.rubyketang.launcher.data.proto.RecommendedSlotStateProto
 import com.rubyketang.launcher.data.proto.StringListProto
 import com.rubyketang.launcher.data.proto.TargetProto
 import com.rubyketang.launcher.data.proto.UsageEventProto
@@ -21,6 +22,9 @@ import java.io.OutputStream
 
 /** Proto DataStore 快照：索引 + frecency 事件（含信号）+ 覆盖/别名/手势/pin/提议状态。 */
 
+/** §2.3 推荐簇迟滞单槽状态：(挑战者 id, 最后检查日, 连续天数)，对应 RecommendedClusterPolicy。 */
+typealias RecommendedSlotState = Triple<String?, Long, Int>
+
 data class Snapshot(
     val targets: List<Target>,
     val usage: Map<String, List<UsageEvent>>,
@@ -30,6 +34,10 @@ data class Snapshot(
     val userAliases: Map<String, List<String>>,
     val dndHiddenUntil: Map<String, Long> = emptyMap(),
     val syncEnabled: Boolean = false,
+    val fixedSlots: Map<Int, String> = emptyMap(),
+    val recommendedSlotState: Map<Int, RecommendedSlotState> = emptyMap(),
+    val recommendationExcludedUntil: Map<String, Long> = emptyMap(),
+    val recommendedOccupants: Map<Int, String> = emptyMap(),
 )
 
 private object LauncherStateSerializer : Serializer<LauncherStateProto> {
@@ -86,6 +94,12 @@ internal fun LauncherStateProto.toSnapshot() = Snapshot(
     userAliases = userAliasesMap.mapValues { it.value.valuesList },
     dndHiddenUntil = dndHiddenUntilMap,
     syncEnabled = syncEnabled,
+    fixedSlots = fixedSlotsMap,
+    recommendedSlotState = recommendedSlotStateMap.mapValues { (_, v) ->
+        RecommendedSlotState(v.challengerId.ifEmpty { null }, v.lastCheckedDay, v.streakDays)
+    },
+    recommendationExcludedUntil = recommendationExcludedUntilMap,
+    recommendedOccupants = recommendedOccupantsMap,
 )
 
 internal fun TargetProto.toTarget() = Target(
@@ -128,5 +142,18 @@ internal fun Snapshot.toProto(): LauncherStateProto {
     }
     builder.putAllDndHiddenUntil(dndHiddenUntil)
     builder.syncEnabled = syncEnabled
+    builder.putAllFixedSlots(fixedSlots)
+    recommendedSlotState.forEach { (slot, s) ->
+        builder.putRecommendedSlotState(
+            slot,
+            RecommendedSlotStateProto.newBuilder()
+                .setChallengerId(s.first ?: "")
+                .setLastCheckedDay(s.second)
+                .setStreakDays(s.third)
+                .build(),
+        )
+    }
+    builder.putAllRecommendationExcludedUntil(recommendationExcludedUntil)
+    builder.putAllRecommendedOccupants(recommendedOccupants)
     return builder.build()
 }

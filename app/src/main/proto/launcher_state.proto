@@ -28,6 +28,13 @@ message StringListProto {
   repeated string values = 1;
 }
 
+// 05-product-spec.md §2.3 推荐簇迟滞状态，对应 RecommendedClusterPolicy 的单槽状态。
+message RecommendedSlotStateProto {
+  string challenger_id = 1;   // 空字符串表示当前没有在计数的挑战者
+  int64 last_checked_day = 2;
+  int32 streak_days = 3;
+}
+
 message LauncherStateProto {
   repeated TargetProto targets = 1;
   map<string, UsageEventsProto> usage = 2;
@@ -38,4 +45,8 @@ message LauncherStateProto {
   reserved 7, 8;                                       // 原 P1-3 手势提议字段，随四角对角滑一起移除（05-product-spec.md 附）
   map<string, int64> dnd_hidden_until = 9;             // P2-2：分类临时隐藏截止时间
   bool sync_enabled = 10;                              // P2-3：仅在用户明确发起同步后开启
+  map<int32, string> fixed_slots = 11;                 // §2.3：固定簇，key 是槽位 0..3，缺失 = 空槽
+  map<int32, RecommendedSlotStateProto> recommended_slot_state = 12; // §2.3：推荐簇迟滞状态，key 是槽位 0..3
+  map<string, int64> recommendation_excluded_until = 13; // §2.3：长按推荐槽"排除"，30 天内不再推荐
+  map<int32, string> recommended_occupants = 14;       // §2.3：推荐簇当前在位者，key 是槽位 0..3，缺失 = 空槽
 }

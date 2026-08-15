@@ -78,6 +78,8 @@ class MainActivity : ComponentActivity() {
         // 这条路径的时机——单靠 Canvas 重新进入组合的 LaunchedEffect 覆盖不到应用一直停留在
         // Canvas、只是切到后台又切回来的情况。
         state.refreshAccessibilityStatus()
+        // §4.6：默认桌面在系统设置里被换掉也是同一条"切到后台再切回"路径，一并在这里查。
+        state.checkDefaultLauncherStatus()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
