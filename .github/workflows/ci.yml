@@ -1,0 +1,42 @@
+name: CI
+
+# 05-product-spec.md §4.1：性能预算靠单测里的计时断言（IndexStore/Resolver 查询 < 8ms、
+# 快照反序列化 < 20ms），这个 workflow 只负责让它们真的在每次改动上跑起来、超预算就拒绝合并——
+# 断言本身在 engine/src/test 和 app/src/test 里，不在这里重复定义。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # engine 是纯 JVM 模块，app 需要 Android SDK 编译；两个都跑，任一失败整个 CI 失败。
+      - name: Run unit tests
+        run: ./gradlew :engine:test :app:testDebugUnitTest --console=plain
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            engine/build/reports/tests
+            app/build/reports/tests
+          retention-days: 7
