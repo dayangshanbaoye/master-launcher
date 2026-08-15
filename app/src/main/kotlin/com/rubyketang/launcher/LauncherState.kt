@@ -37,6 +37,7 @@ import com.rubyketang.launcher.engine.rank.PinStore
 import com.rubyketang.launcher.engine.rank.RecommendedClusterPolicy
 import com.rubyketang.launcher.engine.showcase.ShowcaseRotationPolicy
 import com.rubyketang.launcher.engine.showcase.ShowcaseRotationSnapshot
+import com.rubyketang.launcher.engine.tag.BehaviorClusterModel
 import com.rubyketang.launcher.engine.tag.TagResolver
 import com.rubyketang.launcher.engine.visibility.TagDndRegistry
 import com.rubyketang.launcher.model.MatchReason
@@ -77,6 +78,7 @@ class LauncherState(private val appContext: Context) {
 
     val tagResolver = TagResolver()
     val usage = InMemoryUsageStore()
+    private val clusterModel = BehaviorClusterModel()
     val gestures = GestureRegistry()
     val dnd = TagDndRegistry()
     val icons = IconCache(appContext)
@@ -142,6 +144,7 @@ class LauncherState(private val appContext: Context) {
         snapshots.read()?.let { snap ->
             restoreSnapshot(snap, preloadTargets = true)
         }
+        refreshClusterHints()
         store.rebuild()
         registerPackageCallback()
         refreshAccessibilityStatus()
@@ -154,6 +157,23 @@ class LauncherState(private val appContext: Context) {
     }
 
     fun resolve(query: Query): List<ScoredTarget> = resolver.resolve(query)
+
+    /**
+     * 05-product-spec.md §3.2.1 第 5 层"行为聚类"：每次重建索引前，用当前已知分类
+     * （已解析条目里非"未分类"的那部分，取每条第一个命中的分类作为证据）+ 使用记录
+     * 重新算一遍共现建议，灌进 [tagResolver]，供本轮重建时未分类条目的 autoResolve 消费。
+     * 只是提示来源，不推翻已有分类——推翻与否的规则在 [TagResolver] 自己。
+     */
+    private fun refreshClusterHints() {
+        val usageByTarget = usage.snapshot().mapValues { (_, events) -> events.map { it.atMillis } }
+        val knownTags = store.all()
+            .mapNotNull { target ->
+                target.tags.map { it.name }.firstOrNull { it != TagResolver.FALLBACK }
+                    ?.let { category -> target.id to category }
+            }
+            .toMap()
+        tagResolver.installClusterHints(clusterModel.build(usageByTarget, knownTags))
+    }
 
     fun goHome() {
         surface.value = LauncherSurface.CANVAS
@@ -444,6 +464,7 @@ class LauncherState(private val appContext: Context) {
     fun toggleTag(target: Target, category: String) {
         tagResolver.toggleTag(target.id, tagsOf(target.id), category)
         scope.launch {
+            refreshClusterHints()
             store.rebuild() // tag 打在 Target 上，重挂需要重建
             persist()
         }
@@ -473,6 +494,7 @@ class LauncherState(private val appContext: Context) {
         if (cleaned.isEmpty()) return
         userAliases.value = userAliases.value + (targetId to ((userAliases.value[targetId] ?: emptyList()) + cleaned))
         scope.launch {
+            refreshClusterHints()
             store.rebuild() // 别名打在 Target.aliases 上，重建进索引
             persist()
         }
@@ -540,6 +562,7 @@ class LauncherState(private val appContext: Context) {
             val remote = snapshots.import(bytes) ?: return@launch
             restoreSnapshot(SnapshotMerger.localFirst(currentSnapshot(), remote), preloadTargets = true)
             // 导入的索引只用来合并用户数据；立刻按本机 LauncherApps 重建，绝不展示远端未安装 app。
+            refreshClusterHints()
             store.rebuild()
             syncEnabled = true
             persist()
