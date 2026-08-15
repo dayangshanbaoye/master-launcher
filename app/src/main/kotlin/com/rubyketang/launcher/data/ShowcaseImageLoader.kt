@@ -63,12 +63,18 @@ class ShowcaseImageLoader(private val context: Context) {
     }
 
     private fun decodeSampled(uri: Uri, reqWidth: Int, reqHeight: Int): Bitmap? {
+        // 注意：BitmapFactory.decodeStream 在 inJustDecodeBounds=true 时约定返回 null（只把尺寸写进
+        // options，不分配像素内存），所以这一步的返回值不能拿来做"流是否打开成功"的判断——
+        // `openInput(uri)?.use { decodeStream(...) } ?: return null` 这种写法看着是在判空 openInput，
+        // 实际上 use{} 的结果恒为 null，Elvis 会无条件短路 return，导致这个函数在所有输入下都直接返回 null。
+        val boundsStream = openInput(uri) ?: return null
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        openInput(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+        boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
         val options = BitmapFactory.Options().apply {
             inSampleSize = ImageSampling.inSampleSize(bounds.outWidth, bounds.outHeight, reqWidth, reqHeight)
         }
-        return openInput(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+        val pixelStream = openInput(uri) ?: return null
+        return pixelStream.use { BitmapFactory.decodeStream(it, null, options) }
     }
 
     private fun openInput(uri: Uri) = runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
