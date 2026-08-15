@@ -36,7 +36,6 @@ import androidx.core.view.WindowInsetsCompat
 import com.rubyketang.launcher.ui.browse.BrowseScreen
 import com.rubyketang.launcher.ui.canvas.CanvasScreen
 import com.rubyketang.launcher.ui.search.SearchScreen
-import com.rubyketang.launcher.ui.recent.TaskOverviewOverlay
 import com.rubyketang.launcher.ui.gesture.launcherGestures
 import com.rubyketang.launcher.ui.theme.LocalUiScale
 import com.rubyketang.launcher.ui.theme.motionSpec
@@ -73,6 +72,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         hideNavigationBar()
+        // §4.5：授权/撤销发生在系统设置里，onResume 是唯一保证覆盖"去系统设置改完权限再切回来"
+        // 这条路径的时机——单靠 Canvas 重新进入组合的 LaunchedEffect 覆盖不到应用一直停留在
+        // Canvas、只是切到后台又切回来的情况。
+        state.refreshAccessibilityStatus()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -119,7 +122,6 @@ class MainActivity : ComponentActivity() {
 fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit) {
     val palette = warmPalette(isSystemInDarkTheme())
     val surface by state.surface.collectAsState()
-    val taskOverviewVisible by state.taskOverviewVisible.collectAsState()
     val scale by state.preferences.fontScale.collectAsState()
     BackHandler { state.back() }
     CompositionLocalProvider(LocalUiScale provides scale) {
@@ -154,9 +156,6 @@ fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit) {
                 LauncherSurface.SEARCH -> SearchScreen(state, palette)
                 LauncherSurface.BROWSE -> BrowseScreen(state, palette)
             }
-        }
-        if (taskOverviewVisible) {
-            TaskOverviewOverlay(state, palette, onDismiss = state::dismissTaskOverview)
         }
     }
     }

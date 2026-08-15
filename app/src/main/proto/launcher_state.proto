@@ -35,8 +35,7 @@ message LauncherStateProto {
   map<string, string> gestures = 4;
   repeated string pins = 5;
   map<string, StringListProto> user_aliases = 6;       // P1-4
-  repeated string proposal_done = 7;                   // P1-3：已提议过的 target
-  map<string, int64> proposal_rejected_until = 8;      // P1-3：拒绝冷却截止时刻
+  reserved 7, 8;                                       // 原 P1-3 手势提议字段，随四角对角滑一起移除（05-product-spec.md 附）
   map<string, int64> dnd_hidden_until = 9;             // P2-2：分类临时隐藏截止时间
   bool sync_enabled = 10;                              // P2-3：仅在用户明确发起同步后开启
 }

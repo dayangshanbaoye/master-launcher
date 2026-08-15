@@ -11,8 +11,10 @@ import com.rubyketang.launcher.model.Target
 import com.rubyketang.launcher.ui.theme.Palette
 
 /**
- * 长按条目的统一菜单：置顶 / 记住叫法 / 改分类 / 绑到角滑。
+ * 长按条目的统一菜单：置顶 / 记住叫法 / 改分类。
  * 所有可调项就地调整，不做集中设置页。
+ *
+ * TODO(Wave 1)：按新手势模型加回"绑定手势"入口（05-product-spec.md §1.5 速查表就地改绑）。
  */
 @Composable
 fun TargetContextMenu(
@@ -27,12 +29,6 @@ fun TargetContextMenu(
         return
     }
 
-    val cornerNames = listOf(
-        "corner_tl" to "↘ 左上起手",
-        "corner_tr" to "↙ 右上起手",
-        "corner_bl" to "↗ 左下起手",
-        "corner_br" to "↖ 右下起手",
-    )
     ContextMenu(
         title = target.label,
         palette = palette,
@@ -49,9 +45,6 @@ fun TargetContextMenu(
             }
             state.dndActionsFor(target).forEach { action ->
                 add(MenuItem(action.label) { state.toggleDnd(action.tag) })
-            }
-            cornerNames.forEach { (gestureId, name) ->
-                add(MenuItem("绑到角滑 $name") { state.bindGesture(gestureId, target.id) })
             }
             if (!state.notificationAccessGranted()) {
                 add(MenuItem("开启可操作通知") { state.requestNotificationAccess() })

@@ -16,22 +16,21 @@ class SnapshotMergerTest {
     @Test fun `P2-3 本地配置优先，使用记录与内容取并集`() {
         val local = Snapshot(
             targets = listOf(localTarget), usage = mapOf(localTarget.id to listOf(UsageEvent(2L, 0))),
-            tagOverrides = mapOf(localTarget.id to "工具"), gestures = mapOf("corner_tl" to localTarget.id),
+            tagOverrides = mapOf(localTarget.id to "工具"), gestures = mapOf("down" to localTarget.id),
             pins = setOf(localTarget.id), userAliases = mapOf(localTarget.id to listOf("我的")),
-            proposalDone = emptySet(), proposalRejectedUntil = emptyMap(), dndHiddenUntil = mapOf("工具" to 9L),
+            dndHiddenUntil = mapOf("工具" to 9L),
             syncEnabled = true,
         )
         val remote = Snapshot(
             targets = listOf(remoteTarget), usage = mapOf(localTarget.id to listOf(UsageEvent(1L, 0))),
-            tagOverrides = mapOf(localTarget.id to "阅读"), gestures = mapOf("corner_tl" to remoteTarget.id),
+            tagOverrides = mapOf(localTarget.id to "阅读"), gestures = mapOf("down" to remoteTarget.id),
             pins = setOf(remoteTarget.id), userAliases = mapOf(localTarget.id to listOf("远端叫法")),
-            proposalDone = setOf(remoteTarget.id), proposalRejectedUntil = emptyMap(),
         )
 
         val merged = SnapshotMerger.localFirst(local, remote)
 
         assertEquals("工具", merged.tagOverrides[localTarget.id])
-        assertEquals(localTarget.id, merged.gestures["corner_tl"])
+        assertEquals(localTarget.id, merged.gestures["down"])
         assertEquals(listOf("远端叫法", "我的"), merged.userAliases[localTarget.id])
         assertEquals(listOf(1L, 2L), merged.usage[localTarget.id]?.map { it.atMillis })
         assertEquals(setOf(localTarget.id, remoteTarget.id), merged.pins)

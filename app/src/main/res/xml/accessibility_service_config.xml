@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  05-product-spec.md §1 / §4.5：只用于触发系统级全局动作（最近任务/通知栏/锁屏），
+  不读取屏幕内容、不监听按键、不做任何自动化点击——canRetrieveWindowContent 和
+  canPerformGestures 都关掉，事件订阅收到最窄，降低这个服务实际能做的事，
+  也让用户在系统设置里看到的权限描述尽量诚实。
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="100"
+    android:canRetrieveWindowContent="false"
+    android:canPerformGestures="false"
+    android:canRequestTouchExplorationMode="false"
+    android:description="@string/accessibility_service_description" />

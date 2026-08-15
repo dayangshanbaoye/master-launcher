@@ -62,7 +62,7 @@ object Dimens {
     val Border = 0.5.dp
     val BorderSelected = 1.dp
     val GestureThreshold = 48.dp
-    val CornerGestureZone = 72.dp
+    val TwoFingerMinDistance = 60.dp
 }
 
 /** Sheet 与页面动效统一用这个 spring。 */

@@ -56,6 +56,20 @@
             </intent-filter>
         </service>
 
+        <!-- 05-product-spec.md §1/§4.5：上滑最近任务、双指下滑通知栏/锁屏。只用 performGlobalAction，见 accessibility_service_config.xml。 -->
+        <service
+            android:name=".accessibility.LauncherAccessibilityService"
+            android:exported="false"
+            android:label="Master Launcher 手势导航"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.sync"

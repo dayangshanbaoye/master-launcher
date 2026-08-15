@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 系统"无障碍"设置页里展示给用户的服务说明，授权前必读。 -->
+    <string name="accessibility_service_description">用于手势导航：上滑打开最近任务、双指下滑展开通知栏（可选改为锁屏）。不读取屏幕内容，不监听按键，不做自动点击。</string>
+</resources>

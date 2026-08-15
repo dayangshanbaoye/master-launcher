@@ -26,7 +26,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,9 +62,12 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
     val version by state.indexVersion.collectAsState()
     val dndVersion by state.dndVersion.collectAsState()
     val notifications by state.notificationEntries.collectAsState()
+    val accessibilityGranted by state.accessibilityGranted.collectAsState()
     val top by produceState<List<ScoredTarget>>(emptyList(), version, dndVersion, notifications) {
         value = state.canvasEntries()
     }
+    // §4.5：每次回到 Canvas 重新组合时刷新一次无障碍授权状态（国产 ROM 后台清理会静默关闭服务）。
+    androidx.compose.runtime.LaunchedEffect(Unit) { state.refreshAccessibilityStatus() }
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         while (true) {
@@ -70,6 +78,10 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
     var menuTarget by remember { mutableStateOf<com.rubyketang.launcher.model.Target?>(null) }
     var quickReferenceVisible by remember { mutableStateOf(false) }
     var settingsVisible by remember { mutableStateOf(false) }
+    // 长按菜单是"按住拖到目标行再松手"的经典交互（跟电源键菜单一样），不是分两次独立点击——
+    // 浮层本身跟着长按手指的存活期出现/消失，所以命中判定得知道每一行画在哪、手指最终落在哪。
+    var spacerCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var quickReferenceTargets by remember { mutableStateOf(emptyMap<String, Rect>()) }
 
     Box(
         Modifier
@@ -93,7 +105,17 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .quickReferenceLongPress { quickReferenceVisible = it }
+                        .onGloballyPositioned { spacerCoordinates = it }
+                        .quickReferenceLongPress(
+                            onVisibilityChanged = { quickReferenceVisible = it },
+                            onReleaseAt = { localPosition ->
+                                val root = spacerCoordinates?.localToRoot(localPosition) ?: return@quickReferenceLongPress
+                                when (quickReferenceTargets.entries.firstOrNull { (_, bounds) -> bounds.contains(root) }?.key) {
+                                    "two_finger" -> state.preferences.cycleTwoFingerDownAction()
+                                    "settings" -> settingsVisible = true
+                                }
+                            },
+                        )
                 )
                 top.forEach { scored ->
                     Row(
@@ -137,55 +159,21 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Hint("↓ 搜索", palette)
+                    Hint("→ 浏览", palette)
                     Hint("↑ 最近", palette)
-                    state.gestureBindings().entries.take(2).forEach { (gestureId, targetId) ->
-                        Hint("${cornerArrow(gestureId)} ${state.labelOf(targetId) ?: ""}", palette)
-                    }
-                }
-            }
-        }
-
-        // P1-3 引擎提议：手势不是用户配的，是引擎长出来的
-        val proposal by produceState<com.rubyketang.launcher.model.Target?>(null, version) {
-            value = state.pendingProposal()
-        }
-        proposal?.let { target ->
-            Column(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 64.dp)
-                    .fillMaxWidth()
-                    .border(Dimens.Border, palette.accent, RoundedCornerShape(12.dp))
-                    .padding(16.dp)
-            ) {
-                BasicText(
-                    "${target.label} 这周每天都排前三",
-                    style = TextStyle(color = palette.fg, fontSize = Type.Item),
-                )
-                BasicText(
-                    "绑到角滑，以后一步就能开",
-                    Modifier.padding(top = 8.dp),
-                    style = TextStyle(color = palette.fg2, fontSize = Type.Secondary),
-                )
-                Row(Modifier.padding(top = 16.dp)) {
-                    BasicText(
-                        "绑定",
-                        Modifier
-                            .combinedClickable(onClick = { state.acceptProposal(target.id) })
-                            .padding(end = 20.dp),
-                        style = TextStyle(color = palette.accent, fontSize = Type.Secondary),
-                    )
-                    BasicText(
-                        "不用",
-                        Modifier.combinedClickable(onClick = { state.rejectProposal(target.id) }),
-                        style = TextStyle(color = palette.fg2, fontSize = Type.Secondary),
-                    )
                 }
             }
         }
 
         if (quickReferenceVisible) {
-            QuickReferenceOverlay(state.quickReferenceHints(), palette)
+            QuickReferenceOverlay(
+                state = state,
+                palette = palette,
+                accessibilityGranted = accessibilityGranted,
+                onMeasureTarget = { key, bounds ->
+                    quickReferenceTargets = quickReferenceTargets + (key to bounds)
+                },
+            )
         }
 
         BasicText(
@@ -213,9 +201,19 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
     }
 }
 
-/** 长按空白处的瞬时说明层；绑定列表由 State 提供，Surface 只负责呈现。 */
+/**
+ * 长按空白处的手势速查表（05-product-spec.md §1.5）。按住不放显示，拖到某一行再松手即选中该项，
+ * 松手位置不在任何可操作行上就只是单纯看一眼、什么都不触发——手指全程不离开屏幕，
+ * 所以这里的行不能用普通 `combinedClickable`（那需要独立的按下-松开，长按浮层活不到那一下）。
+ */
 @Composable
-private fun QuickReferenceOverlay(hints: List<com.rubyketang.launcher.GestureHintEntry>, palette: Palette) {
+private fun QuickReferenceOverlay(
+    state: LauncherState,
+    palette: Palette,
+    accessibilityGranted: Boolean,
+    onMeasureTarget: (key: String, bounds: Rect) -> Unit,
+) {
+    val twoFingerAction by state.preferences.twoFingerDownAction.collectAsState()
     Box(
         Modifier
             .fillMaxSize()
@@ -230,21 +228,45 @@ private fun QuickReferenceOverlay(hints: List<com.rubyketang.launcher.GestureHin
                 .padding(20.dp),
         ) {
             BasicText("手势速查", style = TextStyle(color = palette.fg2, fontSize = Type.Secondary))
-            if (hints.isEmpty()) {
+            BasicText(
+                "拖到下面某一行再松手可操作",
+                Modifier.padding(top = 2.dp),
+                style = TextStyle(color = palette.fg2, fontSize = Type.Secondary),
+            )
+            listOf(
+                "↓ 下滑 · 搜索" to true,
+                "→ 右滑 · 浏览" to true,
+                "← 左滑 · 返回" to true,
+                "双击空白 · 回首页" to true,
+                "↑ 上滑 · 最近任务" to accessibilityGranted,
+            ).forEach { (label, enabled) ->
                 BasicText(
-                    "尚未绑定角滑",
+                    if (enabled) label else "$label（需授权）",
                     Modifier.padding(top = 12.dp),
-                    style = TextStyle(color = palette.fg, fontSize = Type.Item),
+                    style = TextStyle(color = if (enabled) palette.fg else palette.fg2, fontSize = Type.Item),
                 )
-            } else {
-                hints.forEach { hint ->
-                    BasicText(
-                        "${cornerArrow(hint.gestureId)}  ${hint.label}",
-                        Modifier.padding(top = 12.dp),
-                        style = TextStyle(color = palette.fg, fontSize = Type.Item),
-                    )
-                }
             }
+            val twoFingerLabel = when (twoFingerAction) {
+                com.rubyketang.launcher.data.TwoFingerDownAction.NOTIFICATIONS -> "通知栏"
+                com.rubyketang.launcher.data.TwoFingerDownAction.LOCK_SCREEN -> "锁屏"
+                com.rubyketang.launcher.data.TwoFingerDownAction.NONE -> "留空"
+            }
+            val twoFingerNeedsAuth = twoFingerAction != com.rubyketang.launcher.data.TwoFingerDownAction.NONE && !accessibilityGranted
+            val twoFingerSuffix = if (twoFingerNeedsAuth) "（需授权） · 拖到这行切换" else " · 拖到这行切换"
+            BasicText(
+                "双指下滑 · $twoFingerLabel$twoFingerSuffix",
+                Modifier
+                    .padding(top = 12.dp)
+                    .onGloballyPositioned { onMeasureTarget("two_finger", it.boundsInRoot()) },
+                style = TextStyle(color = if (twoFingerNeedsAuth) palette.fg2 else palette.fg, fontSize = Type.Item),
+            )
+            BasicText(
+                "设置",
+                Modifier
+                    .padding(top = 20.dp)
+                    .onGloballyPositioned { onMeasureTarget("settings", it.boundsInRoot()) },
+                style = TextStyle(color = palette.accent, fontSize = Type.Item),
+            )
         }
     }
 }
@@ -259,20 +281,30 @@ private fun HomeSettingsSheet(
     onDismiss: () -> Unit,
 ) {
     val scale by state.preferences.fontScale.collectAsState()
+    val accessibilityGranted by state.accessibilityGranted.collectAsState()
     Box(Modifier.fillMaxSize().background(palette.bg.copy(alpha = 0.92f))) {
         Column(
             Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.Center)
                 .fillMaxWidth()
                 .border(Dimens.Border, palette.line, RoundedCornerShape(Dimens.SheetRadius))
                 .padding(20.dp),
         ) {
             BasicText("桌面控制", style = TextStyle(color = palette.fg, fontSize = Type.Item))
             BasicText(
-                "下滑搜索 · 上滑最近任务 · 左滑返回 · 右滑切换界面",
+                "下滑搜索 · 右滑浏览 · 左滑返回 · 双击回首页 · 长按看手势速查表",
                 Modifier.padding(top = 8.dp),
                 style = TextStyle(color = palette.fg2, fontSize = Type.Secondary),
             )
+            if (!accessibilityGranted) {
+                BasicText(
+                    "开启无障碍才能用上滑最近任务 / 双指下滑通知栏",
+                    Modifier
+                        .combinedClickable(onClick = state::openAccessibilitySettings)
+                        .padding(top = 12.dp),
+                    style = TextStyle(color = palette.accent, fontSize = Type.Secondary),
+                )
+            }
             Row(Modifier.padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                 BasicText("字体与图标", style = TextStyle(color = palette.fg, fontSize = Type.Item))
                 BasicText(
@@ -291,15 +323,6 @@ private fun HomeSettingsSheet(
                     style = TextStyle(color = palette.accent, fontSize = Type.Item),
                 )
             }
-            BasicText(
-                "右上／右下等角滑：长按任意条目后绑定；点此清除全部绑定",
-                Modifier
-                    .combinedClickable(onClick = {
-                        listOf("corner_tl", "corner_tr", "corner_bl", "corner_br").forEach(state::unbindGesture)
-                    })
-                    .padding(top = 18.dp),
-                style = TextStyle(color = palette.fg2, fontSize = Type.Secondary),
-            )
             Row(Modifier.padding(top = 18.dp)) {
                 BasicText(
                     "切换系统桌面",
@@ -324,12 +347,4 @@ private fun HomeSettingsSheet(
 @Composable
 private fun Hint(text: String, palette: Palette) {
     BasicText(text, style = TextStyle(color = palette.fg2, fontSize = Type.Secondary))
-}
-
-private fun cornerArrow(gestureId: String): String = when (gestureId) {
-    "corner_tl" -> "↘"
-    "corner_tr" -> "↙"
-    "corner_bl" -> "↗"
-    "corner_br" -> "↖"
-    else -> "·"
 }

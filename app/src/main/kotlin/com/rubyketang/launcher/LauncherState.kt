@@ -11,11 +11,14 @@ import android.os.UserManager
 import androidx.core.content.FileProvider
 import androidx.core.app.NotificationManagerCompat
 import android.provider.Settings
+import com.rubyketang.launcher.accessibility.AccessibilityStatus
+import com.rubyketang.launcher.accessibility.LauncherAccessibilityService
 import com.rubyketang.launcher.data.ActionableNotificationRegistry
 import com.rubyketang.launcher.data.AndroidContextProvider
 import com.rubyketang.launcher.data.AppSource
 import com.rubyketang.launcher.data.IconCache
 import com.rubyketang.launcher.data.LauncherPreferences
+import com.rubyketang.launcher.data.TwoFingerDownAction
 import com.rubyketang.launcher.data.RecentAppsProvider
 import com.rubyketang.launcher.data.ShortcutSource
 import com.rubyketang.launcher.data.Snapshot
@@ -27,7 +30,6 @@ import com.rubyketang.launcher.engine.index.InMemoryIndexStore
 import com.rubyketang.launcher.engine.index.IndexVersion
 import com.rubyketang.launcher.engine.pinyin.DefaultPinyinEngine
 import com.rubyketang.launcher.engine.pinyin.Pinyin4jDict
-import com.rubyketang.launcher.engine.predict.GestureProposer
 import com.rubyketang.launcher.engine.rank.InMemoryUsageStore
 import com.rubyketang.launcher.engine.rank.PinStore
 import com.rubyketang.launcher.engine.tag.TagResolver
@@ -51,7 +53,6 @@ import java.io.File
 enum class LauncherSurface { CANVAS, SEARCH, BROWSE }
 
 data class CategoryDndAction(val tag: com.rubyketang.launcher.model.Tag, val label: String)
-data class GestureHintEntry(val gestureId: String, val label: String)
 
 /**
  * 应用级状态装配：Source → Engine → Resolver 全在这里接线。
@@ -68,7 +69,6 @@ class LauncherState(private val appContext: Context) {
     val icons = IconCache(appContext)
     val preferences = LauncherPreferences(appContext)
     private val recentApps = RecentAppsProvider(appContext)
-    val proposer = GestureProposer(usage, gestures)
 
     private val pinned = MutableStateFlow<Set<String>>(emptySet())
     private val pins = PinStore { id -> id in pinned.value }
@@ -96,9 +96,11 @@ class LauncherState(private val appContext: Context) {
     )
 
     val surface = MutableStateFlow(LauncherSurface.CANVAS)
-    val taskOverviewVisible = MutableStateFlow(false)
     val voiceSearchRequested = MutableStateFlow(false)
     val indexVersion: StateFlow<IndexVersion> = store.observe()
+
+    /** §4.5 无障碍失效自检：开机 + 每次回到 Canvas 刷新一次，速查表读这个渲染灰显状态。 */
+    val accessibilityGranted = MutableStateFlow(false)
 
     /** 冷启动：快照先进索引（< 20ms 可交互），再后台从 LauncherApps 全量重建。 */
     suspend fun init() {
@@ -107,6 +109,7 @@ class LauncherState(private val appContext: Context) {
         }
         store.rebuild()
         registerPackageCallback()
+        refreshAccessibilityStatus()
         persist()
     }
 
@@ -114,7 +117,6 @@ class LauncherState(private val appContext: Context) {
 
     fun goHome() {
         surface.value = LauncherSurface.CANVAS
-        taskOverviewVisible.value = false
         voiceSearchRequested.value = false
     }
 
@@ -123,34 +125,40 @@ class LauncherState(private val appContext: Context) {
         if (surface.value != LauncherSurface.CANVAS) goHome()
     }
 
-    fun nextSurface() {
-        surface.value = when (surface.value) {
-            LauncherSurface.CANVAS -> {
-                voiceSearchRequested.value = true
-                LauncherSurface.SEARCH
-            }
-            LauncherSurface.SEARCH -> LauncherSurface.BROWSE
-            LauncherSurface.BROWSE -> LauncherSurface.CANVAS
-        }
+    /** §4.5：开机已经查过一次；这个给"每次回到 Canvas"用，CanvasScreen 进入组合时调用。 */
+    fun refreshAccessibilityStatus() {
+        accessibilityGranted.value = AccessibilityStatus.isEnabled(appContext)
     }
 
+    fun openAccessibilitySettings() = AccessibilityStatus.openSettings(appContext)
+
+    /** 05-product-spec.md §1.2/§1.3 手势路由。 */
     fun handleSurfaceGesture(gestureId: String) {
         when (gestureId) {
             "down" -> if (surface.value == LauncherSurface.CANVAS) {
                 voiceSearchRequested.value = false
                 surface.value = LauncherSurface.SEARCH
             }
-            "up" -> if (surface.value == LauncherSurface.CANVAS) taskOverviewVisible.value = true
+            "right" -> if (surface.value == LauncherSurface.CANVAS) {
+                surface.value = LauncherSurface.BROWSE
+            } // Browse 内右滑无动作（§1.3），不再复用旧的三路循环
             "left" -> back()
-            "right" -> nextSurface()
+            // 未授权时不绑定任何动作、不弹窗骚扰（§4.5）——不再回退到旧的自制最近任务浮层。
+            "up" -> if (surface.value == LauncherSurface.CANVAS && accessibilityGranted.value) {
+                LauncherAccessibilityService.openRecents()
+            }
+            // 就地改绑：通知栏（默认）/ 锁屏 / 留空，见速查表（§1.2）。留空时不需要无障碍也不做任何事。
+            "two_finger_down" -> if (accessibilityGranted.value) {
+                when (preferences.twoFingerDownAction.value) {
+                    TwoFingerDownAction.NOTIFICATIONS -> LauncherAccessibilityService.expandNotifications()
+                    TwoFingerDownAction.LOCK_SCREEN -> LauncherAccessibilityService.lockScreen()
+                    TwoFingerDownAction.NONE -> Unit
+                }
+            }
             else -> gestures.targetFor(gestureId)?.let { targetId ->
                 store.entry(targetId)?.target?.let(::launch)
             }
         }
-    }
-
-    fun dismissTaskOverview() {
-        taskOverviewVisible.value = false
     }
 
     fun consumeVoiceSearchRequest() {
@@ -253,27 +261,7 @@ class LauncherState(private val appContext: Context) {
         }
     }
 
-    fun bindGesture(gestureId: String, targetId: String) {
-        gestures.bind(gestureId, targetId)
-        persist()
-    }
-
-    fun unbindGesture(gestureId: String) {
-        gestures.unbind(gestureId)
-        persist()
-    }
-
-    fun gestureBindings(): Map<String, String> = gestures.bindings()
-
     fun labelOf(targetId: String): String? = store.entry(targetId)?.target?.label
-
-    fun quickReferenceHints(): List<GestureHintEntry> = listOf(
-        "corner_tl", "corner_tr", "corner_bl", "corner_br",
-    ).mapNotNull { gestureId ->
-        gestures.targetFor(gestureId)?.let { targetId ->
-            labelOf(targetId)?.let { label -> GestureHintEntry(gestureId, label) }
-        }
-    }
 
     /** P2-2：通过已有的条目长按菜单就地启用，不增加设置页。 */
     fun dndActionsFor(target: Target): List<CategoryDndAction> = target.tags.map { tag ->
@@ -341,24 +329,6 @@ class LauncherState(private val appContext: Context) {
         }
     }
 
-    /** P1-3：当前该浮出的手势提议（无则 null）。 */
-    fun pendingProposal(): Target? =
-        proposer.proposal(System.currentTimeMillis())?.let { store.entry(it)?.target }
-
-    /** P1-3：接受 → 绑到第一个空着的角滑槽。 */
-    fun acceptProposal(targetId: String) {
-        val free = listOf("corner_tl", "corner_tr", "corner_bl", "corner_br")
-            .firstOrNull { gestures.targetFor(it) == null } ?: return
-        gestures.bind(free, targetId)
-        proposer.accept(targetId)
-        persist()
-    }
-
-    fun rejectProposal(targetId: String) {
-        proposer.reject(targetId, System.currentTimeMillis())
-        persist()
-    }
-
     /** Browse 左栏：有内容的分类（按 TagResolver.ALL 的固定顺序）+ 全部。 */
     fun categories(): List<String> {
         val now = System.currentTimeMillis()
@@ -380,7 +350,6 @@ class LauncherState(private val appContext: Context) {
     }
 
     private fun currentSnapshot(): Snapshot {
-        val (proposed, rejected) = proposer.snapshot()
         return Snapshot(
             targets = store.all().toList(),
             usage = usage.snapshot(),
@@ -388,8 +357,6 @@ class LauncherState(private val appContext: Context) {
             gestures = gestures.bindings(),
             pins = pinned.value,
             userAliases = userAliases.value,
-            proposalDone = proposed,
-            proposalRejectedUntil = rejected,
             dndHiddenUntil = dnd.snapshot(System.currentTimeMillis()),
             syncEnabled = syncEnabled,
         )
@@ -400,7 +367,6 @@ class LauncherState(private val appContext: Context) {
         usage.restore(snapshot.usage)
         gestures.restore(snapshot.gestures)
         dnd.restore(snapshot.dndHiddenUntil)
-        proposer.restore(snapshot.proposalDone, snapshot.proposalRejectedUntil)
         pinned.value = snapshot.pins
         userAliases.value = snapshot.userAliases
         syncEnabled = snapshot.syncEnabled
