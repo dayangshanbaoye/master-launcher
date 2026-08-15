@@ -435,14 +435,28 @@ class LauncherState(private val appContext: Context) {
         persist()
     }
 
-    /** §3.2.3 单条编辑：长按菜单里勾/取消勾一个分类，多选，立即生效。 */
+    /**
+     * §3.2.3 单条编辑：长按菜单里勾/取消勾一个分类，多选，立即生效。
+     * 基准集合读 [tagsOf]（同步，来自 tagResolver 自己的 overrides），不用调用方传进来的 [target]
+     * 快照——同一次打开的菜单里连续勾两个分类时，target.tags 还是长按那一刻的旧值，拿它当基准会
+     * 让第二次勾选把第一次的结果覆盖掉。
+     */
     fun toggleTag(target: Target, category: String) {
-        tagResolver.toggleTag(target.id, target.tags.map { it.name }.toSet(), category)
+        tagResolver.toggleTag(target.id, tagsOf(target.id), category)
         scope.launch {
             store.rebuild() // tag 打在 Target 上，重挂需要重建
             persist()
         }
     }
+
+    /**
+     * 条目当前的实时分类集合：有手动覆盖记录就读覆盖（tagResolver.overrides() 是同步的，
+     * 不用等 store.rebuild() 那次异步重建），没有覆盖过则退回索引里已经算出来的自动分类。
+     * 长按菜单的勾选状态和 [toggleTag] 的基准集合都用这个，保证两边读的是同一份"当前值"。
+     */
+    fun tagsOf(targetId: String): Set<String> =
+        tagResolver.overrides()[targetId]
+            ?: store.entry(targetId)?.target?.tags?.map { it.name }?.toSet().orEmpty()
 
     /** 长按菜单渲染多选列表用：固定分类表 + 用户自建分类。 */
     fun allTagCategories(): List<String> = tagResolver.allCategories()
