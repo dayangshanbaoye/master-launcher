@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 仅 Debug APK：供模拟器验收可操作通知，不进入 Release 包。 -->
+    <application>
+        <receiver
+            android:name=".P2QaNotificationReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.rubyketang.launcher.DEBUG_POST_P2_NOTIFICATION" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- P1-1 语音输入 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- P1-5 车载蓝牙信号（未授权时降级，不弹权限） -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <!-- P2-1：只接收带点击入口的通知，不读取通知正文或会话。 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 最近任务卡片：用户在系统“使用情况访问”中显式授权后才读取最近使用记录。 -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+
+    <!-- 即使用户尚未把本应用设为默认桌面，也可见所有带启动图标的应用。 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <application
+        android:label="Master Launcher"
+        android:icon="@android:drawable/sym_def_app_icon"
+        android:theme="@style/Theme.MasterLauncher"
+        android:allowBackup="false"
+        android:supportsRtl="true">
+
+        <!-- P0-10：默认 Launcher 接管 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- P2-3：另一台设备通过系统分享将本地快照交给启动器合并。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.master-launcher.sync" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".data.ActionableNotificationListener"
+            android:exported="false"
+            android:label="Master Launcher 可操作通知"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.sync"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/sync_paths" />
+        </provider>
+    </application>
+</manifest>

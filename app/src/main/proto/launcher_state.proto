@@ -1,0 +1,42 @@
+syntax = "proto3";
+package launcher;
+
+option java_package = "com.rubyketang.launcher.data.proto";
+option java_multiple_files = true;
+
+// 索引快照 + frecency 事件（含设备信号）+ 用户覆盖/别名 + 提议状态，全部一个文件。
+message TargetProto {
+  string id = 1;
+  string kind = 2;
+  string label = 3;
+  repeated string aliases = 4;
+  repeated string tags = 5;
+  string icon_uri = 6;
+  string launch_uri = 7;
+}
+
+message UsageEventProto {
+  int64 at = 1;
+  int32 signals = 2;  // ContextSignals 的信号位掩码（P1-5）
+}
+
+message UsageEventsProto {
+  repeated UsageEventProto events = 1;
+}
+
+message StringListProto {
+  repeated string values = 1;
+}
+
+message LauncherStateProto {
+  repeated TargetProto targets = 1;
+  map<string, UsageEventsProto> usage = 2;
+  map<string, string> tag_overrides = 3;
+  map<string, string> gestures = 4;
+  repeated string pins = 5;
+  map<string, StringListProto> user_aliases = 6;       // P1-4
+  repeated string proposal_done = 7;                   // P1-3：已提议过的 target
+  map<string, int64> proposal_rejected_until = 8;      // P1-3：拒绝冷却截止时刻
+  map<string, int64> dnd_hidden_until = 9;             // P2-2：分类临时隐藏截止时间
+  bool sync_enabled = 10;                              // P2-3：仅在用户明确发起同步后开启
+}

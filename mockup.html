@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Master Launcher — 设计稿</title>
+<style>
+  :root {
+    --bg: #14100E; --fg: #EDE6DC; --fg2: #8C837A;
+    --line: #2A2320; --accent: #C97A40;
+    --page: #0C0A09;
+  }
+  body.light {
+    --bg: #FAF6F0; --fg: #26221E; --fg2: #6E665E;
+    --line: #E5DDD3; --accent: #C97A40;
+    --page: #EFE9E1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--page); color: var(--fg);
+    font-family: "PingFang SC", "Source Han Sans SC", "Noto Sans SC", -apple-system, sans-serif;
+    font-weight: 400; padding: 40px 24px 64px;
+    transition: background .3s, color .3s;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  header { margin-bottom: 36px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 20px; font-weight: 400; letter-spacing: .01em; }
+  .sub { font-size: 12px; color: var(--fg2); }
+  button.mode {
+    margin-left: auto; background: none; border: .5px solid var(--line);
+    color: var(--fg2); font-size: 12px; padding: 6px 14px; border-radius: 8px;
+    cursor: pointer; font-family: inherit;
+  }
+  button.mode:hover { color: var(--fg); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(248px, 1fr)); gap: 28px; }
+  .cell > .cap { font-size: 11px; color: var(--fg2); margin-bottom: 10px; letter-spacing: .04em; }
+  .cell > .note { font-size: 11px; color: var(--fg2); margin-top: 10px; line-height: 1.7; }
+
+  .phone {
+    background: var(--bg); border: .5px solid var(--line); border-radius: 20px;
+    height: 460px; overflow: hidden; display: flex; flex-direction: column;
+    transition: background .3s, border-color .3s;
+  }
+
+  /* Canvas */
+  .canvas { padding: 24px 20px; display: flex; flex-direction: column; height: 100%; }
+  .clock { font-size: 26px; font-weight: 300; line-height: 1; letter-spacing: .01em; }
+  .date { font-size: 11px; color: var(--fg2); margin-top: 6px; }
+  .pins { margin-top: auto; display: flex; flex-direction: column; gap: 14px; }
+  .pin { display: flex; align-items: center; gap: 11px; font-size: 13px; }
+  .gl { width: 15px; height: 15px; flex: none; border: .5px solid var(--fg2); border-radius: 4px; }
+  .hints { margin-top: 22px; padding-top: 12px; border-top: .5px solid var(--line);
+           display: flex; justify-content: space-between; font-size: 11px; color: var(--fg2); }
+
+  /* Search */
+  .search { padding: 20px 16px; display: flex; flex-direction: column; height: 100%; }
+  .field { border: .5px solid var(--fg2); border-radius: 8px; padding: 10px 12px;
+           display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .field .listening { font-size: 11px; color: var(--accent); margin-left: auto; }
+  .mic { width: 13px; height: 13px; border: 1px solid var(--accent); border-radius: 7px 7px 6px 6px; flex: none; }
+  .res { margin-top: 20px; display: flex; flex-direction: column; gap: 18px; }
+  .res .l1 { font-size: 13px; }
+  .res .l2 { font-size: 11px; color: var(--fg2); margin-top: 3px; }
+  .foot { margin-top: auto; padding-top: 12px; border-top: .5px solid var(--line);
+          font-size: 11px; color: var(--fg2); line-height: 1.7; }
+
+  /* Browse */
+  .browse { display: flex; height: 100%; }
+  .rail { width: 76px; flex: none; border-right: .5px solid var(--line); padding: 20px 0;
+          display: flex; flex-direction: column; }
+  .rail div { font-size: 12px; color: var(--fg2); padding: 10px 0 10px 14px; }
+  .rail div.on { color: var(--accent); }
+  .rail .all { margin-top: auto; border-top: .5px solid var(--line); }
+  .list { flex: 1; min-width: 0; padding: 20px 14px; display: flex; flex-direction: column; }
+  .item { border: .5px solid var(--line); border-radius: 8px; padding: 11px 12px;
+          font-size: 13px; margin-bottom: 8px; }
+  .item.on { border-color: var(--fg2); border-width: 1px; padding: 10.5px 11.5px; }
+  .item .suffix { color: var(--fg2); }
+  .count { margin-top: auto; font-size: 11px; color: var(--fg2); }
+
+  /* Proposal */
+  .proposal { padding: 24px 20px; display: flex; flex-direction: column; height: 100%; }
+  .card { margin-top: auto; border: .5px solid var(--accent); border-radius: 12px; padding: 16px; }
+  .card .t { font-size: 13px; line-height: 1.6; }
+  .card .d { font-size: 11px; color: var(--fg2); margin-top: 8px; line-height: 1.6; }
+  .card .acts { display: flex; gap: 20px; margin-top: 16px; font-size: 12px; }
+  .card .acts .y { color: var(--accent); }
+  .card .acts .n { color: var(--fg2); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Master Launcher</h1>
+    <span class="sub">Warm Minimal · 四个界面</span>
+    <button class="mode" onclick="document.body.classList.toggle('light')">切换亮/暗</button>
+  </header>
+
+  <div class="grid">
+
+    <div class="cell">
+      <div class="cap">Canvas · 主屏</div>
+      <div class="phone"><div class="canvas">
+        <div class="clock">9:41</div>
+        <div class="date">周三 · 8月12日</div>
+        <div class="pins">
+          <div class="pin"><span class="gl"></span>微信</div>
+          <div class="pin"><span class="gl"></span>相机</div>
+          <div class="pin"><span class="gl"></span>微信读书</div>
+          <div class="pin"><span class="gl"></span>高德地图</div>
+        </div>
+        <div class="hints"><span>↑ 搜索</span><span>↓ 浏览</span><span>↘ 微信</span></div>
+      </div></div>
+      <div class="note">四项由 Ranker 排出，用户不可拖拽。不放图标网格——Canvas 是手势的画布，不是 app 的容器。</div>
+    </div>
+
+    <div class="cell">
+      <div class="cap">Search · 语音边说边搜</div>
+      <div class="phone"><div class="search">
+        <div class="field">
+          <span>微信读</span>
+          <span class="listening">听写中</span>
+          <span class="mic"></span>
+        </div>
+        <div class="res">
+          <div><div class="l1">微信读书</div><div class="l2">语音 · 今天 3 次</div></div>
+          <div><div class="l1">微信 → 扫一扫</div><div class="l2">快捷方式</div></div>
+          <div><div class="l1">微信</div><div class="l2">应用</div></div>
+        </div>
+        <div class="foot">partial result 每 200ms 刷新<br>停顿 600ms 锁定第一项 · ↵ 直接打开</div>
+      </div></div>
+      <div class="note">🎤 常驻输入框内，不做独立按钮——语音是输入通道，不是第四个入口。</div>
+    </div>
+
+    <div class="cell">
+      <div class="cap">Browse · master-detail · 无图标</div>
+      <div class="phone"><div class="browse">
+        <div class="rail">
+          <div>常用</div><div>工具</div><div class="on">阅读</div>
+          <div>出行</div><div>教学</div><div>社交</div>
+          <div class="all">全部</div>
+        </div>
+        <div class="list">
+          <div class="item on">微信读书</div>
+          <div class="item">静读天下</div>
+          <div class="item">得到</div>
+          <div class="item">Kindle</div>
+          <div class="item">豆瓣</div>
+          <div class="item">句读</div>
+          <div class="item">多看阅读<span class="suffix"> HD</span></div>
+          <div class="count">7 项 · 按使用频率</div>
+        </div>
+      </div></div>
+      <div class="note">分类内按 frecency 排，不按字母；只有"全部"挂首字母索引条。共同前缀的条目把差异渲染成次级色后缀。</div>
+    </div>
+
+    <div class="cell">
+      <div class="cap">引擎提议 · 手势自己长出来</div>
+      <div class="phone"><div class="proposal">
+        <div class="clock">9:41</div>
+        <div class="date">周三 · 8月12日</div>
+        <div class="card">
+          <div class="t">微信读书 这周每天都排前三</div>
+          <div class="d">绑到右下角滑，以后一步就能开</div>
+          <div class="acts"><span class="y">绑定</span><span class="n">不用</span></div>
+        </div>
+      </div></div>
+      <div class="note">"复杂性归引擎"的代价是可发现性归零。引擎必须主动提议，否则用户永远不知道自己有什么。拒绝后 30 天内不再提同一目标。</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
