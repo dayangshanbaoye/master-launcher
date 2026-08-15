@@ -34,14 +34,24 @@ fun warmPalette(dark: Boolean): Palette = if (dark) {
     Palette(WarmColors.BgLight, WarmColors.FgLight, WarmColors.Fg2Light, WarmColors.LineLight, WarmColors.Accent)
 }
 
-/** 字号只有三级；字重只用 Light/Regular。 */
+/**
+ * 字号原本只有三级；05-product-spec.md §2.2 给时钟区加了按副元素数量变化的排布，
+ * 引入 ClockLarge/ClockWithSub/ClockSubline 三个新尺寸，新 spec 优先于旧的"只有三级"。
+ */
 object Type {
     val Item: androidx.compose.ui.unit.TextUnit
         @Composable get() = 13.sp * LocalUiScale.current
     val Secondary: androidx.compose.ui.unit.TextUnit
         @Composable get() = 11.sp * LocalUiScale.current
-    val Clock: androidx.compose.ui.unit.TextUnit
-        @Composable get() = 26.sp * LocalUiScale.current
+    /** §2.2：0 个副元素时，时间单独 48sp。 */
+    val ClockLarge: androidx.compose.ui.unit.TextUnit
+        @Composable get() = 48.sp * LocalUiScale.current
+    /** §2.2：1-3 个副元素时，时间 32sp。 */
+    val ClockWithSub: androidx.compose.ui.unit.TextUnit
+        @Composable get() = 32.sp * LocalUiScale.current
+    /** §2.2：1-2 个副元素合并成一行时，副行 12sp（3 个副元素拆两行时用 Secondary 11sp）。 */
+    val ClockSubline: androidx.compose.ui.unit.TextUnit
+        @Composable get() = 12.sp * LocalUiScale.current
 }
 
 val LocalUiScale = staticCompositionLocalOf { 1f }

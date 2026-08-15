@@ -32,11 +32,18 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rubyketang.launcher.LauncherState
 import com.rubyketang.launcher.LauncherSurface
+import com.rubyketang.launcher.data.Handedness
+import com.rubyketang.launcher.data.TwoFingerDownAction
+import com.rubyketang.launcher.engine.calendar.LunarCalendar
+import com.rubyketang.launcher.engine.canvas.ClockFormatter
 import com.rubyketang.launcher.model.ScoredTarget
 import com.rubyketang.launcher.resolver.Query
 import com.rubyketang.launcher.ui.TargetContextMenu
@@ -46,9 +53,8 @@ import com.rubyketang.launcher.ui.theme.LocalUiScale
 import com.rubyketang.launcher.ui.theme.Palette
 import com.rubyketang.launcher.ui.theme.Type
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.Instant
+import java.time.ZoneId
 
 /**
  * P0-5 Canvas 主屏：时间 + 日期 + 引擎 top-4 + 底部手势提示条。
@@ -57,7 +63,7 @@ import java.util.Locale
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -> Unit) {
+fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -> Unit, onSetDefaultLauncher: () -> Unit) {
     val uiScale = LocalUiScale.current
     val version by state.indexVersion.collectAsState()
     val dndVersion by state.dndVersion.collectAsState()
@@ -68,13 +74,6 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
     }
     // §4.5：每次回到 Canvas 重新组合时刷新一次无障碍授权状态（国产 ROM 后台清理会静默关闭服务）。
     androidx.compose.runtime.LaunchedEffect(Unit) { state.refreshAccessibilityStatus() }
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(60_000 - now % 60_000)
-        }
-    }
     var menuTarget by remember { mutableStateOf<com.rubyketang.launcher.model.Target?>(null) }
     var quickReferenceVisible by remember { mutableStateOf(false) }
     var settingsVisible by remember { mutableStateOf(false) }
@@ -89,15 +88,7 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
             .padding(Dimens.ScreenMargin)
     ) {
         Column(Modifier.fillMaxSize()) {
-            BasicText(
-                SimpleDateFormat("H:mm", Locale.getDefault()).format(Date(now)),
-                style = TextStyle(color = palette.fg, fontSize = Type.Clock, fontWeight = FontWeight.Light),
-            )
-            BasicText(
-                SimpleDateFormat("E · M月d日", Locale.getDefault()).format(Date(now)),
-                Modifier.padding(top = 6.dp),
-                style = TextStyle(color = palette.fg2, fontSize = Type.Secondary),
-            )
+            ClockArea(state, palette)
 
             // 引擎排出的 top-4，用户不可拖拽
             Column(Modifier.weight(1f)) {
@@ -191,6 +182,7 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
                 state = state,
                 palette = palette,
                 onEnableBluetooth = onEnableBluetooth,
+                onSetDefaultLauncher = onSetDefaultLauncher,
                 onDismiss = { settingsVisible = false },
             )
         }
@@ -198,6 +190,58 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
         menuTarget?.let { target ->
             TargetContextMenu(state, target, palette) { menuTarget = null }
         }
+    }
+}
+
+/**
+ * 05-product-spec.md §2.2 时钟区：四元素（时间恒显示，星期/日期/农历可勾选），
+ * 副元素数量决定排布（0 个→48sp 无副行；1-3 个→32sp + 1-2 行副行）。
+ *
+ * 分钟跳变只重绘时间文本，不重组整个时钟区——`now` 只有时间那一行的 BasicText 直接读，
+ * 副行内容通过 `remember(dayKey, ...)` 按天粒度缓存，同一天内的分钟 tick 不会让副行重新排版。
+ */
+@Composable
+private fun ClockArea(state: LauncherState, palette: Palette) {
+    val showWeekday by state.preferences.showWeekday.collectAsState()
+    val showDate by state.preferences.showDate.collectAsState()
+    val showLunar by state.preferences.showLunar.collectAsState()
+
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(60_000 - now % 60_000)
+        }
+    }
+
+    val dayKey = now / 86_400_000L
+    val lines = remember(dayKey, showWeekday, showDate, showLunar) {
+        val date = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
+        val lunar = if (showLunar) LunarCalendar.of(date) else null
+        ClockFormatter.format(date, showWeekday, showDate, showLunar, lunar)
+    }
+    val hour = remember(now / 60_000L) {
+        Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalTime()
+    }
+
+    BasicText(
+        "%d:%02d".format(hour.hour, hour.minute),
+        style = TextStyle(
+            color = palette.fg,
+            fontSize = if (lines.sublines.isEmpty()) Type.ClockLarge else Type.ClockWithSub,
+            fontWeight = FontWeight.Light,
+            fontFeatureSettings = "tnum", // 数字等宽，分钟跳变时整行宽度不抖动
+        ),
+    )
+    lines.sublines.forEachIndexed { index, line ->
+        BasicText(
+            line,
+            Modifier.padding(top = if (index == 0) 6.dp else 2.dp),
+            style = TextStyle(
+                color = palette.fg2,
+                fontSize = if (lines.sublines.size == 2) Type.Secondary else Type.ClockSubline,
+            ),
+        )
     }
 }
 
@@ -247,11 +291,11 @@ private fun QuickReferenceOverlay(
                 )
             }
             val twoFingerLabel = when (twoFingerAction) {
-                com.rubyketang.launcher.data.TwoFingerDownAction.NOTIFICATIONS -> "通知栏"
-                com.rubyketang.launcher.data.TwoFingerDownAction.LOCK_SCREEN -> "锁屏"
-                com.rubyketang.launcher.data.TwoFingerDownAction.NONE -> "留空"
+                TwoFingerDownAction.NOTIFICATIONS -> "通知栏"
+                TwoFingerDownAction.LOCK_SCREEN -> "锁屏"
+                TwoFingerDownAction.NONE -> "留空"
             }
-            val twoFingerNeedsAuth = twoFingerAction != com.rubyketang.launcher.data.TwoFingerDownAction.NONE && !accessibilityGranted
+            val twoFingerNeedsAuth = twoFingerAction != TwoFingerDownAction.NONE && !accessibilityGranted
             val twoFingerSuffix = if (twoFingerNeedsAuth) "（需授权） · 拖到这行切换" else " · 拖到这行切换"
             BasicText(
                 "双指下滑 · $twoFingerLabel$twoFingerSuffix",
@@ -271,77 +315,159 @@ private fun QuickReferenceOverlay(
     }
 }
 
-/** 首页角落入口：仅放会改变系统桌面行为的少量控制，不把主界面变成传统设置页。 */
+/**
+ * 05-product-spec.md §2.4 设置入口：分组固定为 桌面/手势/时钟/相册/数据/关于。
+ * 纪律条款（CLAUDE.md 红线 #5）：只放系统级开关，排序权重/分类规则/迟滞天数这类引擎参数
+ * 一律不进这里。相册（Wave 5）、数据（Wave 6）还没做，先占位，免得这张 Sheet 被推倒重做。
+ */
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 private fun HomeSettingsSheet(
     state: LauncherState,
     palette: Palette,
     onEnableBluetooth: () -> Unit,
+    onSetDefaultLauncher: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val scale by state.preferences.fontScale.collectAsState()
     val accessibilityGranted by state.accessibilityGranted.collectAsState()
-    Box(Modifier.fillMaxSize().background(palette.bg.copy(alpha = 0.92f))) {
+    val handedness by state.preferences.handedness.collectAsState()
+    val showWeekday by state.preferences.showWeekday.collectAsState()
+    val showDate by state.preferences.showDate.collectAsState()
+    val showLunar by state.preferences.showLunar.collectAsState()
+
+    // fillMaxSize + clickable(onDismiss) 吃掉浮层范围内所有触摸——不然内容行之间的空隙会让点击
+    // 穿透到背后的 Canvas，误触发 app 图标（真机测试踩到过，见 ContextMenu.kt 已有的同款写法）。
+    Box(Modifier.fillMaxSize().background(palette.bg.copy(alpha = 0.92f)).combinedClickable(onClick = onDismiss)) {
         Column(
             Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
                 .border(Dimens.Border, palette.line, RoundedCornerShape(Dimens.SheetRadius))
                 .padding(20.dp),
         ) {
-            BasicText("桌面控制", style = TextStyle(color = palette.fg, fontSize = Type.Item))
-            BasicText(
-                "下滑搜索 · 右滑浏览 · 左滑返回 · 双击回首页 · 长按看手势速查表",
-                Modifier.padding(top = 8.dp),
-                style = TextStyle(color = palette.fg2, fontSize = Type.Secondary),
-            )
-            if (!accessibilityGranted) {
-                BasicText(
-                    "开启无障碍才能用上滑最近任务 / 双指下滑通知栏",
-                    Modifier
-                        .combinedClickable(onClick = state::openAccessibilitySettings)
-                        .padding(top = 12.dp),
-                    style = TextStyle(color = palette.accent, fontSize = Type.Secondary),
-                )
+            SettingsGroup("桌面", palette, isFirst = true) {
+                SettingsAction("选择默认桌面", palette, state::openHomeSettings)
+                SettingsAction("设为默认桌面", palette, onSetDefaultLauncher)
+                Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    BasicText("字体与图标", style = TextStyle(color = palette.fg, fontSize = Type.Item))
+                    BasicText(
+                        "−",
+                        Modifier.combinedClickable(onClick = { state.preferences.setFontScale(scale - 0.05f) }).padding(start = 18.dp),
+                        style = TextStyle(color = palette.accent, fontSize = Type.Item),
+                    )
+                    BasicText(
+                        "${"%.0f".format(scale * 100)}%",
+                        Modifier.padding(horizontal = 14.dp),
+                        style = TextStyle(color = palette.fg, fontSize = Type.Item),
+                    )
+                    BasicText(
+                        "+",
+                        Modifier.combinedClickable(onClick = { state.preferences.setFontScale(scale + 0.05f) }),
+                        style = TextStyle(color = palette.accent, fontSize = Type.Item),
+                    )
+                }
             }
-            Row(Modifier.padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                BasicText("字体与图标", style = TextStyle(color = palette.fg, fontSize = Type.Item))
+            SettingsGroup("手势", palette) {
                 BasicText(
-                    "−",
-                    Modifier.combinedClickable(onClick = { state.preferences.setFontScale(scale - 0.05f) }).padding(start = 18.dp),
-                    style = TextStyle(color = palette.accent, fontSize = Type.Item),
+                    "下滑搜索 · 右滑浏览 · 左滑返回 · 双击回首页 · 长按看手势速查表",
+                    style = TextStyle(color = palette.fg2, fontSize = Type.Secondary),
                 )
-                BasicText(
-                    "${"%.0f".format(scale * 100)}%",
-                    Modifier.padding(horizontal = 14.dp),
-                    style = TextStyle(color = palette.fg, fontSize = Type.Item),
-                )
-                BasicText(
-                    "+",
-                    Modifier.combinedClickable(onClick = { state.preferences.setFontScale(scale + 0.05f) }),
-                    style = TextStyle(color = palette.accent, fontSize = Type.Item),
-                )
+                Row(Modifier.padding(top = 10.dp)) {
+                    HandednessOption("惯用右手", Handedness.RIGHT, handedness, palette, state.preferences::setHandedness)
+                    HandednessOption("惯用左手", Handedness.LEFT, handedness, palette, state.preferences::setHandedness)
+                }
+                if (accessibilityGranted) {
+                    BasicText(
+                        "无障碍已开启",
+                        Modifier.padding(top = 10.dp),
+                        style = TextStyle(color = palette.fg2, fontSize = Type.Secondary),
+                    )
+                } else {
+                    SettingsAction(
+                        "开启无障碍才能用上滑最近任务 / 双指下滑通知栏",
+                        palette,
+                        state::openAccessibilitySettings,
+                        topPadding = 10.dp,
+                    )
+                }
+                SettingsAction("开启蓝牙", palette, onEnableBluetooth, topPadding = 10.dp)
             }
-            Row(Modifier.padding(top = 18.dp)) {
-                BasicText(
-                    "切换系统桌面",
-                    Modifier.combinedClickable(onClick = state::openHomeSettings).padding(end = 22.dp),
-                    style = TextStyle(color = palette.accent, fontSize = Type.Item),
-                )
-                BasicText(
-                    "开启蓝牙",
-                    Modifier.combinedClickable(onClick = onEnableBluetooth).padding(end = 22.dp),
-                    style = TextStyle(color = palette.accent, fontSize = Type.Item),
-                )
-                BasicText(
-                    "关闭",
-                    Modifier.combinedClickable(onClick = onDismiss),
-                    style = TextStyle(color = palette.fg2, fontSize = Type.Item),
-                )
+            SettingsGroup("时钟", palette) {
+                ToggleRow("星期", showWeekday, palette, state.preferences::setShowWeekday)
+                ToggleRow("日期", showDate, palette, state.preferences::setShowDate)
+                ToggleRow("农历", showLunar, palette, state.preferences::setShowLunar)
             }
+            SettingsGroup("相册", palette) {
+                BasicText("即将支持", style = TextStyle(color = palette.fg2, fontSize = Type.Secondary))
+            }
+            SettingsGroup("数据", palette) {
+                BasicText("即将支持", style = TextStyle(color = palette.fg2, fontSize = Type.Secondary))
+            }
+            SettingsGroup("关于", palette) {
+                BasicText("Master Launcher 0.1", style = TextStyle(color = palette.fg2, fontSize = Type.Secondary))
+            }
+            SettingsAction("关闭", palette, onDismiss, topPadding = 20.dp, accented = false)
         }
     }
+}
+
+@Composable
+private fun SettingsGroup(title: String, palette: Palette, isFirst: Boolean = false, content: @Composable () -> Unit) {
+    Column(Modifier.padding(top = if (isFirst) 0.dp else 18.dp)) {
+        BasicText(title, style = TextStyle(color = palette.fg2, fontSize = Type.Secondary))
+        Column(Modifier.padding(top = 8.dp)) { content() }
+    }
+}
+
+@Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun SettingsAction(
+    label: String,
+    palette: Palette,
+    onClick: () -> Unit,
+    topPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    accented: Boolean = true,
+) {
+    BasicText(
+        label,
+        Modifier.combinedClickable(onClick = onClick).padding(top = topPadding),
+        style = TextStyle(color = if (accented) palette.accent else palette.fg2, fontSize = Type.Item),
+    )
+}
+
+/** 没有勾选框控件，用颜色 + 前缀符号表达开关状态，跟这套无装饰视觉一致。 */
+@Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun ToggleRow(label: String, checked: Boolean, palette: Palette, onToggle: (Boolean) -> Unit) {
+    BasicText(
+        "${if (checked) "✓" else "·"} $label",
+        Modifier
+            .combinedClickable(onClick = { onToggle(!checked) })
+            .padding(top = 8.dp),
+        style = TextStyle(color = if (checked) palette.fg else palette.fg2, fontSize = Type.Item),
+    )
+}
+
+@Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun HandednessOption(
+    label: String,
+    value: Handedness,
+    current: Handedness,
+    palette: Palette,
+    onSelect: (Handedness) -> Unit,
+) {
+    val selected = value == current
+    BasicText(
+        "${if (selected) "✓" else "·"} $label",
+        Modifier
+            .combinedClickable(onClick = { onSelect(value) })
+            .padding(end = 22.dp),
+        style = TextStyle(color = if (selected) palette.accent else palette.fg2, fontSize = Type.Item),
+    )
 }
 
 @Composable

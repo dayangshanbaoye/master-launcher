@@ -58,7 +58,9 @@ class MainActivity : ComponentActivity() {
             state.init()
             state.importSharedIntent(intent)
         }
-        setContent { LauncherRoot(state, onEnableBluetooth = ::requestBluetoothEnable) }
+        setContent {
+            LauncherRoot(state, onEnableBluetooth = ::requestBluetoothEnable, onSetDefaultLauncher = ::requestHomeRoleAlways)
+        }
         requestHomeRoleIfNeeded()
         hideNavigationBar()
     }
@@ -99,6 +101,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** 05-product-spec.md §2.4"设为默认桌面"：设置页里用户主动点，跳过 shouldRequest 的节流判断。 */
+    private fun requestHomeRoleAlways() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            state.openHomeSettings()
+            return
+        }
+        val roles = getSystemService(RoleManager::class.java)
+        if (roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)) {
+            requestHomeRole.launch(roles.createRequestRoleIntent(RoleManager.ROLE_HOME))
+        }
+    }
+
     private fun requestBluetoothEnable() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -119,7 +133,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit) {
+fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit, onSetDefaultLauncher: () -> Unit) {
     val palette = warmPalette(isSystemInDarkTheme())
     val surface by state.surface.collectAsState()
     val scale by state.preferences.fontScale.collectAsState()
@@ -152,7 +166,7 @@ fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit) {
             label = "surface",
         ) { current ->
             when (current) {
-                LauncherSurface.CANVAS -> CanvasScreen(state, palette, onEnableBluetooth)
+                LauncherSurface.CANVAS -> CanvasScreen(state, palette, onEnableBluetooth, onSetDefaultLauncher)
                 LauncherSurface.SEARCH -> SearchScreen(state, palette)
                 LauncherSurface.BROWSE -> BrowseScreen(state, palette)
             }
