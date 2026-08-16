@@ -157,19 +157,6 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
                     }
                 }
             }
-
-            // 底部手势提示条（分隔靠一条 0.5dp 线）
-            Column(Modifier.fillMaxWidth().padding(top = 22.dp)) {
-                Box(Modifier.fillMaxWidth().height(Dimens.Border).background(palette.line))
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Hint("↓ 搜索", palette)
-                    Hint("→ 浏览", palette)
-                    Hint("↑ 最近", palette)
-                }
-            }
         }
 
         if (quickReferenceVisible) {
@@ -720,7 +707,3 @@ private fun HandednessOption(
     )
 }
 
-@Composable
-private fun Hint(text: String, palette: Palette) {
-    BasicText(text, style = TextStyle(color = palette.fg2, fontSize = Type.Secondary))
-}
