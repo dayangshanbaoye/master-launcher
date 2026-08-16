@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,9 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -49,11 +46,11 @@ import com.rubyketang.launcher.LauncherState
 import com.rubyketang.launcher.LauncherSurface
 import com.rubyketang.launcher.resolver.Query
 import com.rubyketang.launcher.speech.SpeechEngine
+import com.rubyketang.launcher.ui.AppIcon
 import com.rubyketang.launcher.ui.TargetContextMenu
 import com.rubyketang.launcher.ui.theme.Dimens
 import com.rubyketang.launcher.ui.theme.LocalUiScale
 import com.rubyketang.launcher.ui.theme.Palette
-import com.rubyketang.launcher.ui.theme.Shapes
 import com.rubyketang.launcher.ui.theme.Type
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
@@ -244,14 +241,14 @@ fun SearchScreen(state: LauncherState, palette: Palette) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         val icon = state.icons.icon(scored.target.iconUri)
-                        if (icon != null) {
-                            Image(
-                                icon.bitmap, null,
-                                Modifier.size(20.dp * uiScale).clip(Shapes.icon),
-                                colorFilter = if (icon.isMonochrome) ColorFilter.tint(palette.fg2) else null,
-                            )
-                            Spacer(Modifier.size(12.dp * uiScale))
-                        }
+                        // 图标本身携带含义弱于旁边的文字，交给相邻的 label 承担朗读，这里保持装饰性。
+                        AppIcon(
+                            icon = icon,
+                            contentDescription = null,
+                            size = 20.dp * uiScale,
+                            borderColor = palette.fg2,
+                        )
+                        Spacer(Modifier.size(12.dp * uiScale))
                         Column {
                             BasicText(
                                 scored.target.label,

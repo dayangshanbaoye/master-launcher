@@ -25,6 +25,7 @@ fun TargetContextMenu(
 ) {
     var aliasing by remember { mutableStateOf(false) }
     var evicting by remember { mutableStateOf(false) }
+    var choosingCategory by remember { mutableStateOf(false) }
     if (aliasing) {
         AliasInput(state, target, palette, onDismiss)
         return
@@ -36,6 +37,21 @@ fun TargetContextMenu(
             onDismiss = onDismiss,
             items = state.fixedSlotTargets().mapIndexedNotNull { index, occupant ->
                 occupant?.let { MenuItem(it.label) { state.setFixedSlot(index, target.id) } }
+            },
+        )
+        return
+    }
+    if (choosingCategory) {
+        // 11 个分类平铺在主菜单里会把长按弹层撑成接近 20 行、超屏没法滚动，收成二级列表。
+        val current = target.tags.firstOrNull()?.name
+        ContextMenu(
+            title = "改分类",
+            palette = palette,
+            onDismiss = onDismiss,
+            items = TagResolver.ALL.map { category ->
+                MenuItem(category, selected = category == current) {
+                    state.overrideTag(target.id, category)
+                }
             },
         )
         return
@@ -58,9 +74,7 @@ fun TargetContextMenu(
                     if (!state.pinRecommendedToFixed(target.id)) evicting = true else onDismiss()
                 }
             )
-            TagResolver.ALL.forEach { category ->
-                add(MenuItem("改分类 → $category") { state.overrideTag(target.id, category) })
-            }
+            add(MenuItem("改分类…", keepOpen = true) { choosingCategory = true })
             state.dndActionsFor(target).forEach { action ->
                 add(MenuItem(action.label) { state.toggleDnd(action.tag) })
             }

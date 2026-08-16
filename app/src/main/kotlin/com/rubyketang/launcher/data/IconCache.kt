@@ -2,9 +2,7 @@ package com.rubyketang.launcher.data
 
 import android.content.Context
 import android.content.pm.LauncherApps
-import android.graphics.drawable.AdaptiveIconDrawable
-import android.graphics.drawable.Drawable
-import android.os.Build
+import android.graphics.Bitmap
 import android.os.Process
 import android.os.UserManager
 import android.util.LruCache
@@ -14,20 +12,20 @@ import androidx.core.graphics.drawable.toBitmap
 
 /**
  * P0-10 图标缓存。Target 里只存 iconUri，Drawable 不进入模型。
- * 单色化不在此处做——渲染时由 UI 用 ColorFilter.tint(次级文本色) 完成。
+ *
+ * style-guide.html §06：图标统一保留原色渲染，不再取系统"主题单色图层"、也不在这里做
+ * 任何染色——降饱和/亮度罩这些展示层处理交给 [com.rubyketang.launcher.ui.AppIcon]，
+ * 这里只负责把原始图标解出来，外加算一次平均亮度供上层判断要不要叠灰罩。
  */
 class IconCache(private val context: Context) {
 
     private val densityDpi = context.resources.displayMetrics.densityDpi
     private val cache = LruCache<String, IconAsset>(128)
 
-    /**
-     * [isMonochrome] 只在系统明确提供 themed 图层时为 true。没有该图层的 app 必须保留
-     * 原生图标，不能为了统一色而牺牲辨识度。
-     */
     data class IconAsset(
         val bitmap: ImageBitmap,
-        val isMonochrome: Boolean,
+        /** 0..1，采样后的平均亮度，供 UI 层判断是否需要叠灰罩（style-guide.html §06）。 */
+        val brightness: Float,
     )
 
     fun icon(iconUri: String?): IconAsset? {
@@ -59,17 +57,32 @@ class IconCache(private val context: Context) {
         val info = launcherApps.getActivityList(pkg, user)
             .firstOrNull { it.componentName.className == className }
             ?: return null
-        val systemIcon = info.getIcon(densityDpi)
-        // 只有系统明确给出 themed layer 的图标才允许统一染色。多数第三方/OEM 图标没有
-        // 这一层，保留原始图标比把不透明背景染成方块更可靠。
-        val themed = (systemIcon as? AdaptiveIconDrawable)
-            ?.takeIf { Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU }
-            ?.monochrome
-        val drawable: Drawable = themed ?: systemIcon
         val size = (48 * context.resources.displayMetrics.density).toInt()
+        val bitmap = info.getIcon(densityDpi).toBitmap(width = size, height = size)
         return IconAsset(
-            bitmap = drawable.toBitmap(width = size, height = size).asImageBitmap(),
-            isMonochrome = themed != null,
+            bitmap = bitmap.asImageBitmap(),
+            brightness = averageLuminance(bitmap),
         )
+    }
+
+    /** 缩到 8×8 采样算平均亮度（0..1），忽略接近全透明的像素。 */
+    private fun averageLuminance(bitmap: Bitmap): Float {
+        val sample = Bitmap.createScaledBitmap(bitmap, 8, 8, true)
+        var total = 0f
+        var count = 0
+        for (y in 0 until sample.height) {
+            for (x in 0 until sample.width) {
+                val pixel = sample.getPixel(x, y)
+                val alpha = (pixel ushr 24) and 0xFF
+                if (alpha < 32) continue
+                val r = (pixel ushr 16) and 0xFF
+                val g = (pixel ushr 8) and 0xFF
+                val b = pixel and 0xFF
+                total += (0.299f * r + 0.587f * g + 0.114f * b) / 255f
+                count++
+            }
+        }
+        sample.recycle()
+        return if (count > 0) total / count else 0f
     }
 }

@@ -1,6 +1,5 @@
 package com.rubyketang.launcher.ui.canvas
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -28,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -46,6 +44,7 @@ import com.rubyketang.launcher.data.TwoFingerDownAction
 import com.rubyketang.launcher.engine.calendar.LunarCalendar
 import com.rubyketang.launcher.engine.canvas.ClockFormatter
 import com.rubyketang.launcher.model.Target
+import com.rubyketang.launcher.ui.AppIcon
 import com.rubyketang.launcher.ui.ContextMenu
 import com.rubyketang.launcher.ui.MenuItem
 import com.rubyketang.launcher.ui.TargetContextMenu
@@ -53,9 +52,7 @@ import com.rubyketang.launcher.ui.gesture.quickReferenceLongPress
 import com.rubyketang.launcher.ui.theme.Dimens
 import com.rubyketang.launcher.ui.theme.LocalUiScale
 import com.rubyketang.launcher.ui.theme.Palette
-import com.rubyketang.launcher.ui.theme.Shapes
 import com.rubyketang.launcher.ui.theme.Type
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
@@ -330,20 +327,13 @@ private fun SlotRow(
     ) {
         if (target != null) {
             val icon = state.icons.icon(target.iconUri)
-            if (icon != null) {
-                Image(
-                    // §4.10 TalkBack：app 槽必须有 contentDescription，手势对无障碍用户不可用时这是唯一入口。
-                    bitmap = icon.bitmap, contentDescription = target.label,
-                    modifier = Modifier.size(15.dp * uiScale).clip(Shapes.icon),
-                    colorFilter = if (icon.isMonochrome) ColorFilter.tint(palette.fg2) else null,
-                )
-            } else {
-                Box(
-                    Modifier
-                        .size(15.dp * uiScale)
-                        .border(Dimens.Border, palette.fg2, RoundedCornerShape(4.dp))
-                )
-            }
+            AppIcon(
+                icon = icon,
+                // §4.10 TalkBack：app 槽必须有 contentDescription，手势对无障碍用户不可用时这是唯一入口。
+                contentDescription = target.label,
+                size = 15.dp * uiScale,
+                borderColor = palette.fg2,
+            )
             Spacer(Modifier.size(11.dp * uiScale))
             BasicText(target.label, style = TextStyle(color = palette.fg, fontSize = Type.Item))
         } else {
