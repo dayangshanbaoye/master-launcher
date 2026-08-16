@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
@@ -53,6 +54,7 @@ import com.rubyketang.launcher.ui.TargetContextMenu
 import com.rubyketang.launcher.ui.theme.Dimens
 import com.rubyketang.launcher.ui.theme.LocalUiScale
 import com.rubyketang.launcher.ui.theme.Palette
+import com.rubyketang.launcher.ui.theme.Shapes
 import com.rubyketang.launcher.ui.theme.Type
 import kotlinx.coroutines.launch
 
@@ -156,8 +158,9 @@ fun BrowseScreen(state: LauncherState, palette: Palette) {
                                     if (icon != null) {
                                         Image(
                                             bitmap = icon.bitmap,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(Dimens.BrowseIconSize * uiScale),
+                                            // §4.10 TalkBack：app 槽/相框必须有 contentDescription，无障碍手势不可用时这是唯一入口。
+                                            contentDescription = scored.target.label,
+                                            modifier = Modifier.size(Dimens.BrowseIconSize * uiScale).clip(Shapes.icon),
                                             colorFilter = if (icon.isMonochrome) ColorFilter.tint(palette.fg2) else null,
                                         )
                                     } else {

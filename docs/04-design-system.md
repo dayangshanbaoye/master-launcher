@@ -1,5 +1,11 @@
 # 04 · 视觉规范 · Warm Minimal
 
+> **本文件已被 `design/style-guide.html`（Clay Orange）取代。** 色值、字体、间距、圆角、
+> 描边、动效以那份文件为准，与本文件冲突时以那份为准。Compose 侧对应
+> `app/src/main/kotlin/com/rubyketang/launcher/ui/theme/Theme.kt`。以下内容保留作历史
+> 记录，不再是当前视觉基线。Browse 从"纯文字无图标"改为"保留原色应用图标"是这次改版
+> 唯一的规则反转，见 style-guide.html §06。
+
 ## 最大的杠杆：图标单色化
 
 把所有 adaptive icon 抽成单色描边，统一染成次级文本色。品牌色一去掉，屏幕从"广告牌"变成"目录"，排序结果的差异成为唯一的视觉信息。

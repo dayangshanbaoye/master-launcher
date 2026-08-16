@@ -39,6 +39,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -52,6 +53,7 @@ import com.rubyketang.launcher.ui.TargetContextMenu
 import com.rubyketang.launcher.ui.theme.Dimens
 import com.rubyketang.launcher.ui.theme.LocalUiScale
 import com.rubyketang.launcher.ui.theme.Palette
+import com.rubyketang.launcher.ui.theme.Shapes
 import com.rubyketang.launcher.ui.theme.Type
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
@@ -245,7 +247,7 @@ fun SearchScreen(state: LauncherState, palette: Palette) {
                         if (icon != null) {
                             Image(
                                 icon.bitmap, null,
-                                Modifier.size(20.dp * uiScale),
+                                Modifier.size(20.dp * uiScale).clip(Shapes.icon),
                                 colorFilter = if (icon.isMonochrome) ColorFilter.tint(palette.fg2) else null,
                             )
                             Spacer(Modifier.size(12.dp * uiScale))

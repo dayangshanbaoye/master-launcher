@@ -53,7 +53,9 @@ import com.rubyketang.launcher.ui.gesture.quickReferenceLongPress
 import com.rubyketang.launcher.ui.theme.Dimens
 import com.rubyketang.launcher.ui.theme.LocalUiScale
 import com.rubyketang.launcher.ui.theme.Palette
+import com.rubyketang.launcher.ui.theme.Shapes
 import com.rubyketang.launcher.ui.theme.Type
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
@@ -330,8 +332,9 @@ private fun SlotRow(
             val icon = state.icons.icon(target.iconUri)
             if (icon != null) {
                 Image(
-                    icon.bitmap, null,
-                    Modifier.size(15.dp * uiScale),
+                    // §4.10 TalkBack：app 槽必须有 contentDescription，手势对无障碍用户不可用时这是唯一入口。
+                    bitmap = icon.bitmap, contentDescription = target.label,
+                    modifier = Modifier.size(15.dp * uiScale).clip(Shapes.icon),
                     colorFilter = if (icon.isMonochrome) ColorFilter.tint(palette.fg2) else null,
                 )
             } else {

@@ -38,6 +38,7 @@ import com.rubyketang.launcher.ui.canvas.CanvasScreen
 import com.rubyketang.launcher.ui.search.SearchScreen
 import com.rubyketang.launcher.ui.gesture.launcherGestures
 import com.rubyketang.launcher.ui.theme.LocalUiScale
+import com.rubyketang.launcher.ui.theme.MasterLauncherTheme
 import com.rubyketang.launcher.ui.theme.motionSpec
 import com.rubyketang.launcher.ui.theme.warmPalette
 import kotlinx.coroutines.launch
@@ -136,10 +137,12 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit, onSetDefaultLauncher: () -> Unit) {
-    val palette = warmPalette(isSystemInDarkTheme())
+    val dark = isSystemInDarkTheme()
+    val palette = warmPalette(dark)
     val surface by state.surface.collectAsState()
     val scale by state.preferences.fontScale.collectAsState()
     BackHandler { state.back() }
+    MasterLauncherTheme(dark = dark) {
     CompositionLocalProvider(LocalUiScale provides scale) {
     Box(
         Modifier
@@ -173,6 +176,7 @@ fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit, onSetDefau
                 LauncherSurface.BROWSE -> BrowseScreen(state, palette)
             }
         }
+    }
     }
     }
 }

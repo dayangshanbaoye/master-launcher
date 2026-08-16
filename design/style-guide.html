@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Master Launcher — 视觉规范</title>
+<style>
+:root{
+  --clay:#D97757; --clay-deep:#BE5F42; --clay-wash:#F6E7E0;
+  --bg:#F5F3EE; --raised:#FFFDFA; --sunk:#EDEAE3;
+  --text:#2C2926; --text2:#7A736B; --text3:#A29A90;
+  --line:#E2DDD4; --line-strong:#CFC8BC;
+  --page:#EAE6DE;
+  --shadow:0 1px 2px rgba(44,41,38,.05);
+}
+[data-theme="dark"]{
+  --clay:#E08A6B; --clay-deep:#C97050; --clay-wash:#3A2620;
+  --bg:#1A1817; --raised:#24211F; --sunk:#141211;
+  --text:#EDE9E3; --text2:#968E85; --text3:#6C655D;
+  --line:#332F2B; --line-strong:#494340;
+  --page:#100F0E;
+  --shadow:none;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--page); color:var(--text);
+  font-family:-apple-system,"Segoe UI",Inter,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  font-weight:400; -webkit-font-smoothing:antialiased;
+  padding:48px 24px 96px; transition:background .25s,color .25s;
+}
+.wrap{max-width:1180px;margin:0 auto}
+
+/* ── page chrome ── */
+.masthead{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:12px}
+h1{font-size:30px;font-weight:500;letter-spacing:-.02em;line-height:1}
+.tag{font-size:12px;color:var(--text2);padding-bottom:2px}
+.rule{height:1px;background:var(--line-strong);margin:20px 0 44px}
+.themebtn{margin-left:auto;background:var(--raised);border:1px solid var(--line-strong);color:var(--text2);
+  font:inherit;font-size:12px;padding:7px 15px;border-radius:999px;cursor:pointer;transition:.15s}
+.themebtn:hover{color:var(--clay);border-color:var(--clay)}
+.themebtn:focus-visible{outline:2px solid var(--clay);outline-offset:2px}
+
+section{margin-bottom:64px}
+.eyebrow{font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--clay);margin-bottom:10px}
+h2{font-size:19px;font-weight:500;letter-spacing:-.01em;margin-bottom:6px}
+.lede{font-size:13.5px;color:var(--text2);line-height:1.75;max-width:62ch;margin-bottom:26px}
+
+/* ── palette ── */
+.swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.sw{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--raised)}
+.sw .chip{height:64px}
+.sw .meta{padding:10px 12px}
+.sw .nm{font-size:12.5px;font-weight:500}
+.sw .hx{font-size:11px;color:var(--text2);font-variant-numeric:tabular-nums;margin-top:3px}
+.sw .use{font-size:11px;color:var(--text3);margin-top:6px;line-height:1.5}
+
+/* ── tables ── */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+   color:var(--text3);padding:0 12px 9px 0;border-bottom:1px solid var(--line-strong)}
+td{padding:11px 12px 11px 0;border-bottom:1px solid var(--line);vertical-align:top;color:var(--text2)}
+td:first-child{color:var(--text);font-weight:500;white-space:nowrap}
+td code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-variant-numeric:tabular-nums}
+
+/* ── phones ── */
+.frames{display:grid;grid-template-columns:repeat(auto-fit,minmax(266px,1fr));gap:30px}
+.fr .cap{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:9px}
+.fr .desc{font-size:12px;color:var(--text2);line-height:1.7;margin-top:11px}
+.phone{background:var(--bg);border:1px solid var(--line-strong);border-radius:22px;
+  height:544px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+
+/* canvas */
+.cv{padding:26px 20px 24px;display:flex;flex-direction:column;height:100%}
+.cvtop{display:flex;align-items:flex-start}
+.gear{margin-left:auto;width:22px;height:22px;border-radius:50%;border:1px solid var(--line-strong);
+  display:grid;place-items:center;flex:none}
+.gear span{width:9px;height:9px;border:1.5px solid var(--text2);border-radius:50%}
+.clock{font-size:44px;font-weight:300;letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums;margin-top:10px}
+.clock.sm{font-size:32px}
+.sub1{font-size:12px;color:var(--text2);margin-top:9px;letter-spacing:.01em}
+.sub2{font-size:11px;color:var(--text3);margin-top:3px}
+.stage{margin:22px 0;border-radius:12px;overflow:hidden;flex:none}
+.poster{height:172px;background:
+  linear-gradient(150deg,#D97757 0%,#C86A4E 38%,#8C5B4C 72%,#4A3B36 100%)}
+.wall{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.frameit{aspect-ratio:1;border-radius:4px;padding:3px;background:var(--raised);
+  border:1px solid var(--line);box-shadow:inset 0 1px 3px rgba(0,0,0,.10)}
+.frameit i{display:block;width:100%;height:100%;border-radius:2px}
+.slots{margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:26px}
+.slot{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 0}
+.slothd{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--text3);margin-bottom:2px}
+.ic{width:20px;height:20px;border-radius:5px;flex:none}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--clay);margin-left:auto;flex:none}
+
+/* search */
+.se{padding:22px 16px;display:flex;flex-direction:column;height:100%}
+.field{background:var(--raised);border:1px solid var(--line-strong);border-radius:11px;
+  padding:11px 13px;display:flex;align-items:center;gap:10px;font-size:14px}
+.field.on{border-color:var(--clay)}
+.mag{width:13px;height:13px;border:1.5px solid var(--text3);border-radius:50%;flex:none}
+.mic{width:9px;height:14px;border-radius:5px;background:var(--clay);flex:none;margin-left:auto}
+.mic.off{background:var(--text3)}
+.blk{font-size:10px;font-weight:500;letter-spacing:.09em;text-transform:uppercase;color:var(--text3);margin:22px 0 12px}
+.chips{display:flex;gap:6px}
+.chip2{font-size:11.5px;padding:4px 11px;border-radius:999px;border:1px solid var(--line);color:var(--text2)}
+.chip2.on{background:var(--clay-wash);border-color:transparent;color:var(--clay)}
+.rank{display:flex;align-items:center;gap:11px;padding:8px 0}
+.rn{font-size:12px;font-weight:500;color:var(--clay);width:13px;font-variant-numeric:tabular-nums;flex:none}
+.rank .nm{font-size:13.5px}
+.rank .ct{margin-left:auto;font-size:11.5px;color:var(--text3);font-variant-numeric:tabular-nums}
+.res{display:flex;flex-direction:column;gap:16px}
+.res .l1{font-size:14px}
+.res .l2{font-size:11.5px;color:var(--text2);margin-top:3px}
+.why{display:inline-block;font-size:10.5px;padding:1.5px 7px;border-radius:4px;
+  background:var(--clay-wash);color:var(--clay);margin-right:6px}
+.foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--text3);line-height:1.7}
+
+/* browse */
+.br{display:flex;height:100%}
+.rail{width:82px;flex:none;border-right:1px solid var(--line);padding:20px 0;display:flex;flex-direction:column}
+.rail b{display:block;font-size:12.5px;font-weight:400;color:var(--text2);padding:10px 0 10px 15px;position:relative}
+.rail b.on{color:var(--clay);font-weight:500;background:var(--clay-wash)}
+.rail .last{margin-top:auto;border-top:1px solid var(--line);padding-top:8px}
+.rail .cnt{font-size:10.5px;color:var(--text3)}
+.list{flex:1;min-width:0;padding:20px 14px;display:flex;flex-direction:column}
+.row{display:flex;align-items:center;gap:11px;padding:9px 0;font-size:13.5px}
+.row .ic{width:22px;height:22px;border-radius:6px}
+.row .sfx{color:var(--text3)}
+.count{margin-top:auto;font-size:11px;color:var(--text3)}
+
+/* viewer */
+.vw{background:#0E0D0C;height:100%;display:flex;flex-direction:column;padding:20px 14px}
+.vwtop{display:flex;align-items:center;font-size:11px;color:#8A837B}
+.vwimg{flex:1;margin:16px 0;border-radius:6px;background:linear-gradient(160deg,#E0A882,#B5705A 45%,#5C4038)}
+.pips{display:flex;gap:6px;justify-content:center;margin-bottom:6px}
+.pips i{width:5px;height:5px;border-radius:50%;background:#4A4540}
+.pips i.on{background:var(--clay)}
+.vwhint{text-align:center;font-size:10.5px;color:#6B645D}
+
+/* sheet */
+.sh{padding:24px 18px;display:flex;flex-direction:column;height:100%;background:var(--sunk)}
+.shhd{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--text3);margin-bottom:16px}
+.gz{display:flex;align-items:center;gap:12px;padding:11px 0;font-size:13px;border-bottom:1px solid var(--line)}
+.gz .ar{font-size:15px;color:var(--clay);width:20px;text-align:center;flex:none}
+.gz .tg{margin-left:auto;font-size:10.5px;color:var(--text3)}
+.gz.dim{color:var(--text3)}
+.gz.dim .ar{color:var(--text3)}
+
+/* settings */
+.st{padding:22px 16px;display:flex;flex-direction:column;height:100%;overflow:hidden}
+.sthd{font-size:17px;font-weight:500;margin-bottom:20px}
+.grp{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--text3);margin:16px 0 8px}
+.li{display:flex;align-items:center;gap:10px;padding:11px 0;font-size:13.5px;border-bottom:1px solid var(--line)}
+.li .rt{margin-left:auto;font-size:12px;color:var(--text3)}
+.sw2{width:36px;height:21px;border-radius:999px;background:var(--line-strong);position:relative;flex:none;margin-left:auto}
+.sw2.on{background:var(--clay)}
+.sw2 i{position:absolute;top:2.5px;left:2.5px;width:16px;height:16px;border-radius:50%;background:#fff}
+.sw2.on i{left:17.5px}
+.cb{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--line-strong);flex:none}
+.cb.on{background:var(--clay);border-color:var(--clay);position:relative}
+.cb.on::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;
+  border:solid #fff;border-width:0 1.6px 1.6px 0;transform:rotate(42deg)}
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;margin-left:auto}
+.seg span{font-size:11.5px;padding:4px 12px;color:var(--text2)}
+.seg span.on{background:var(--clay);color:#fff}
+
+/* components strip */
+.comps{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:20px}
+.card{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:18px}
+.card h3{font-size:12px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);margin-bottom:14px}
+.demo{display:flex;flex-direction:column;gap:12px}
+.btn{font-size:13px;padding:9px 18px;border-radius:9px;background:var(--clay);color:#fff;
+  text-align:center;font-weight:500}
+.btn.sec{background:transparent;border:1px solid var(--line-strong);color:var(--text)}
+.btn.gho{background:transparent;color:var(--clay)}
+.prop{border:1px solid var(--clay);border-radius:12px;padding:14px;background:var(--clay-wash)}
+.prop .t{font-size:12.5px;line-height:1.6}
+.prop .a{display:flex;gap:18px;margin-top:12px;font-size:12px}
+.prop .a .y{color:var(--clay);font-weight:500}
+.prop .a .n{color:var(--text3)}
+.empty{border:1.5px dashed var(--line-strong);border-radius:8px;height:38px;display:grid;place-items:center;
+  font-size:11.5px;color:var(--text3)}
+.note{font-size:12px;color:var(--text2);line-height:1.75;background:var(--raised);
+  border:1px solid var(--line);border-left:2px solid var(--clay);border-radius:0 8px 8px 0;padding:14px 16px;max-width:70ch}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="masthead">
+  <h1>Master Launcher</h1>
+  <span class="tag">视觉规范 · Clay Orange · 无衬线</span>
+  <button class="themebtn" onclick="var r=document.documentElement;r.dataset.theme=r.dataset.theme==='dark'?'light':'dark'">切换深色 / 浅色</button>
+</div>
+<div class="rule"></div>
+
+<!-- 01 色板 -->
+<section>
+  <div class="eyebrow">01 · 色板</div>
+  <h2>一个强调色，两层背景</h2>
+  <p class="lede">强调色只出现在三个地方：当前选中项、引擎推荐或提议、排行榜序号。其余一律灰阶。这条守不住，橙色就从「重点」退化成「主题色」，屏幕会重新变吵。</p>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#D97757"></div><div class="meta">
+      <div class="nm">clay</div><div class="hx">#D97757 / 深色 #E08A6B</div><div class="use">强调。选中、推荐、序号</div></div></div>
+    <div class="sw"><div class="chip" style="background:#BE5F42"></div><div class="meta">
+      <div class="nm">clay-deep</div><div class="hx">#BE5F42</div><div class="use">按下态</div></div></div>
+    <div class="sw"><div class="chip" style="background:#F6E7E0"></div><div class="meta">
+      <div class="nm">clay-wash</div><div class="hx">#F6E7E0 / 深色 #3A2620</div><div class="use">强调底、匹配原因标</div></div></div>
+    <div class="sw"><div class="chip" style="background:#F5F3EE"></div><div class="meta">
+      <div class="nm">bg</div><div class="hx">#F5F3EE / 深色 #1A1817</div><div class="use">页面底</div></div></div>
+    <div class="sw"><div class="chip" style="background:#FFFDFA;border-bottom:1px solid #E2DDD4"></div><div class="meta">
+      <div class="nm">raised</div><div class="hx">#FFFDFA / 深色 #24211F</div><div class="use">输入框、卡片、相框</div></div></div>
+    <div class="sw"><div class="chip" style="background:#2C2926"></div><div class="meta">
+      <div class="nm">text</div><div class="hx">#2C2926 / 深色 #EDE9E3</div><div class="use">主文本</div></div></div>
+    <div class="sw"><div class="chip" style="background:#7A736B"></div><div class="meta">
+      <div class="nm">text-2</div><div class="hx">#7A736B / 深色 #968E85</div><div class="use">次文本</div></div></div>
+    <div class="sw"><div class="chip" style="background:#E2DDD4"></div><div class="meta">
+      <div class="nm">line</div><div class="hx">#E2DDD4 / 深色 #332F2B</div><div class="use">分隔、描边 1px</div></div></div>
+  </div>
+</section>
+
+<!-- 02 字体 -->
+<section>
+  <div class="eyebrow">02 · 字体</div>
+  <h2>单一无衬线，靠字重和字号分级</h2>
+  <p class="lede">全系统只有一个字族。中文用系统默认无衬线，拉丁字母与数字走 Inter；数字一律 tabular-nums，否则时钟每分钟跳变会整行抖动。字重只用 300 / 400 / 500 三档，不用 600 以上——大字重在小屏上会把「目录」变成「广告」。</p>
+  <table>
+    <tr><th>角色</th><th>字号 / 字重</th><th>字距</th><th>用在哪</th></tr>
+    <tr><td>clock-xl</td><td><code>44sp / 300</code></td><td><code>-0.035em</code></td><td>时钟（0 个副元素时）</td></tr>
+    <tr><td>clock</td><td><code>32sp / 300</code></td><td><code>-0.03em</code></td><td>时钟（有副元素时）</td></tr>
+    <tr><td>title</td><td><code>17sp / 500</code></td><td><code>0</code></td><td>设置页标题</td></tr>
+    <tr><td>row</td><td><code>13.5sp / 400</code></td><td><code>0</code></td><td>应用名、结果条目</td></tr>
+    <tr><td>field</td><td><code>14sp / 400</code></td><td><code>0</code></td><td>搜索输入</td></tr>
+    <tr><td>meta</td><td><code>11.5sp / 400</code></td><td><code>0</code></td><td>次要信息、次数</td></tr>
+    <tr><td>eyebrow</td><td><code>10sp / 500</code></td><td><code>0.09em</code> 大写</td><td>区块标题、簇标签</td></tr>
+  </table>
+</section>
+
+<!-- 03 度量 -->
+<section>
+  <div class="eyebrow">03 · 度量</div>
+  <h2>间距、圆角、描边</h2>
+  <table>
+    <tr><th>项</th><th>值</th><th>说明</th></tr>
+    <tr><td>屏幕左右留白</td><td><code>20dp</code></td><td>Browse 右栏 14dp</td></tr>
+    <tr><td>Browse 左栏宽</td><td><code>82dp</code></td><td>容 3 个中文字 + 计数</td></tr>
+    <tr><td>Browse 行高</td><td><code>40dp</code></td><td>图标 22dp，图文间距 11dp</td></tr>
+    <tr><td>Search 结果间距</td><td><code>16dp</code></td><td>两行结构，无分隔线</td></tr>
+    <tr><td>圆角 · 条目</td><td><code>6dp</code></td><td>应用图标</td></tr>
+    <tr><td>圆角 · 容器</td><td><code>11–12dp</code></td><td>输入框、卡片、展示区</td></tr>
+    <tr><td>圆角 · 相框</td><td><code>4dp</code></td><td>外框 4dp / 内图 2dp</td></tr>
+    <tr><td>描边</td><td><code>1dp</code></td><td>全局统一，不用 0.5dp</td></tr>
+    <tr><td>最小可点区</td><td><code>44dp</code></td><td>视觉可以更小，热区不许</td></tr>
+  </table>
+  <p class="lede" style="margin-top:22px">无阴影、无渐变、无卡片填充色，唯一的例外是相框的内阴影（见 05 签名元素）。分隔靠留白，不靠线；确需分隔时用 1dp <code>line</code>，不用加粗。</p>
+</section>
+
+<!-- 04 组件 -->
+<section>
+  <div class="eyebrow">04 · 控件</div>
+  <h2>控件清单</h2>
+  <p class="lede">全部控件都在这里。清单之外的任何新控件，先回答一个问题：它替代了哪一个已有控件？答不上来就不加。</p>
+  <div class="comps">
+
+    <div class="card"><h3>按钮</h3><div class="demo">
+      <div class="btn">设为默认桌面</div>
+      <div class="btn sec">选择默认桌面</div>
+      <div class="btn gho">全部清空</div>
+    </div></div>
+
+    <div class="card"><h3>Chip · 时间窗口</h3><div class="demo">
+      <div class="chips"><span class="chip2">今天</span><span class="chip2 on">本周</span><span class="chip2">本月</span></div>
+      <div style="font-size:11.5px;color:var(--text2);line-height:1.6">选中态用 clay-wash 底 + clay 字，不用实心橙——实心块在一行里太重</div>
+    </div></div>
+
+    <div class="card"><h3>匹配原因标</h3><div class="demo">
+      <div><span class="why">首字母</span><span class="why">今天 3 次</span></div>
+      <div><span class="why">快捷方式</span><span class="why">语音</span></div>
+      <div style="font-size:11.5px;color:var(--text2);line-height:1.6">只标一个，取权重最高的那条原因</div>
+    </div></div>
+
+    <div class="card"><h3>开关 / 勾选</h3><div class="demo">
+      <div class="li" style="border:0;padding:4px 0">惯用手右侧<div class="sw2 on"><i></i></div></div>
+      <div class="li" style="border:0;padding:4px 0"><div class="cb on"></div>星期几</div>
+      <div class="li" style="border:0;padding:4px 0"><div class="cb"></div>农历</div>
+    </div></div>
+
+    <div class="card"><h3>分段控件</h3><div class="demo">
+      <div class="li" style="border:0;padding:4px 0">显示模式
+        <div class="seg"><span class="on">海报</span><span>相册墙</span></div></div>
+      <div style="font-size:11.5px;color:var(--text2);line-height:1.6">仅用于二选一且互斥的系统级开关</div>
+    </div></div>
+
+    <div class="card"><h3>空槽</h3><div class="demo">
+      <div class="empty">点击选择应用</div>
+      <div style="font-size:11.5px;color:var(--text2);line-height:1.6">虚线框，绝不自动填充。空态是邀请，不是错误</div>
+    </div></div>
+
+    <div class="card"><h3>引擎提议卡</h3><div class="demo">
+      <div class="prop">
+        <div class="t">微信读书 这周每天都排前三<br>绑到下拉手势，以后一步就能开</div>
+        <div class="a"><span class="y">绑定</span><span class="n">不用</span></div>
+      </div>
+    </div></div>
+
+    <div class="card"><h3>未读点</h3><div class="demo">
+      <div class="slot" style="padding:0"><span class="ic" style="background:#4C9A5E"></span>微信<span class="dot"></span></div>
+      <div style="font-size:11.5px;color:var(--text2);line-height:1.6">4dp 圆点，不显示数字。「有没有」是信息，具体几条是噪音</div>
+    </div></div>
+
+  </div>
+</section>
+
+<!-- 05 界面 -->
+<section>
+  <div class="eyebrow">05 · 界面</div>
+  <h2>七个界面</h2>
+  <p class="lede">签名元素是相册墙的相框：3dp 象牙白卡纸 + 1dp 描边 + 内阴影。这是全系统唯一允许出现阴影的地方，因为它要模拟的是墙上真实的相框凹陷，而不是拟物装饰——它让首页从「一屏图片」变成「家里的一面墙」。</p>
+  <div class="frames">
+
+    <!-- Canvas 海报 -->
+    <div class="fr"><div class="cap">首页 · 海报模式</div>
+      <div class="phone"><div class="cv">
+        <div class="cvtop"><div class="gear"><span></span></div></div>
+        <div class="clock sm">09:41</div>
+        <div class="sub1">周三 · 8月12日</div>
+        <div class="sub2">六月十九</div>
+        <div class="stage"><div class="poster"></div></div>
+        <div class="slots">
+          <div><div class="slothd">固定</div>
+            <div class="slot"><span class="ic" style="background:#4C9A5E"></span>微信<span class="dot"></span></div>
+            <div class="slot"><span class="ic" style="background:#3E6FB0"></span>微信读书</div>
+            <div class="slot"><span class="ic" style="background:#5B5750"></span>相机</div>
+            <div class="slot"><span class="ic" style="background:#2E7BC4"></span>支付宝</div>
+          </div>
+          <div><div class="slothd">推荐</div>
+            <div class="slot"><span class="ic" style="background:#3AA0A8"></span>高德地图</div>
+            <div class="slot"><span class="ic" style="background:#C4544A"></span>日历</div>
+            <div class="slot"><span class="ic" style="background:#C99A3E"></span>备忘录</div>
+            <div class="slot"><span class="ic" style="background:#6A6259"></span>计算器</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="desc">三个副元素时钟拆两行：<code>星期 · 日期</code> 一行，农历一行。左右两簇由「惯用手」决定，推荐簇落在拇指舒适区。</div>
+    </div>
+
+    <!-- Canvas 相册墙 -->
+    <div class="fr"><div class="cap">首页 · 相册墙</div>
+      <div class="phone"><div class="cv">
+        <div class="cvtop"><div class="gear"><span></span></div></div>
+        <div class="clock">09:41</div>
+        <div class="stage wall">
+          <div class="frameit"><i style="background:linear-gradient(150deg,#E0A882,#A9705C)"></i></div>
+          <div class="frameit"><i style="background:linear-gradient(150deg,#B8A98C,#6E6250)"></i></div>
+          <div class="frameit"><i style="background:linear-gradient(150deg,#D9927A,#8C5344)"></i></div>
+          <div class="frameit"><i style="background:linear-gradient(150deg,#9AA98C,#5C6650)"></i></div>
+          <div class="frameit"><i style="background:linear-gradient(150deg,#E2B48F,#B07E5C)"></i></div>
+          <div class="frameit"><i style="background:linear-gradient(150deg,#A89A9E,#665458)"></i></div>
+        </div>
+        <div class="slots" style="grid-template-columns:1fr">
+          <div><div class="slothd">固定</div>
+            <div class="slot"><span class="ic" style="background:#4C9A5E"></span>微信<span class="dot"></span></div>
+            <div class="slot"><span class="ic" style="background:#3E6FB0"></span>微信读书</div>
+            <div class="slot"><span class="ic" style="background:#5B5750"></span>相机</div>
+            <div class="slot"><span class="ic" style="background:#2E7BC4"></span>支付宝</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="desc">相册墙模式下应用槽减为 4 个，时钟只勾了「时间」所以走 44sp 单行。一屏一个视觉重心。</div>
+    </div>
+
+    <!-- Search 空态 -->
+    <div class="fr"><div class="cap">搜索 · 空态排行榜</div>
+      <div class="phone"><div class="se">
+        <div class="field"><span class="mag"></span><span style="color:var(--text3)">搜索应用</span><span class="mic"></span></div>
+        <div class="blk">最常打开</div>
+        <div class="chips" style="margin-bottom:10px"><span class="chip2">今天</span><span class="chip2 on">本周</span><span class="chip2">本月</span></div>
+        <div class="rank"><span class="rn">1</span><span class="nm">微信读书</span><span class="ct">23</span></div>
+        <div class="rank"><span class="rn">2</span><span class="nm">微信</span><span class="ct">18</span></div>
+        <div class="rank"><span class="rn">3</span><span class="nm">高德地图</span><span class="ct">11</span></div>
+        <div class="rank"><span class="rn">4</span><span class="nm">支付宝</span><span class="ct">9</span></div>
+        <div class="rank"><span class="rn">5</span><span class="nm">日历</span><span class="ct">7</span></div>
+        <div class="foot">长按任意一行可绑手势、钉到首页、改别名</div>
+      </div></div>
+      <div class="desc">序号用 clay 数字——排名是真实序列，编号在这里承载信息而不是装饰。按目标聚合，不按搜索词。</div>
+    </div>
+
+    <!-- Search 输入中 -->
+    <div class="fr"><div class="cap">搜索 · 语音输入中</div>
+      <div class="phone"><div class="se">
+        <div class="field on"><span class="mag"></span><span>微信读</span>
+          <span style="margin-left:auto;font-size:11px;color:var(--clay)">听写中</span><span class="mic" style="margin-left:8px"></span></div>
+        <div class="blk">结果</div>
+        <div class="res">
+          <div><div class="l1">微信读书</div><div class="l2"><span class="why">语音</span>今天 3 次</div></div>
+          <div><div class="l1">微信 › 扫一扫</div><div class="l2"><span class="why">快捷方式</span></div></div>
+          <div><div class="l1">微信</div><div class="l2"><span class="why">应用</span></div></div>
+        </div>
+        <div class="foot">结果向下排列，键盘遮住的是空白不是结果<br>停顿 600ms 锁定第一项</div>
+      </div></div>
+      <div class="desc">输入框获焦时描边转 clay。听写状态用文字标注，不用跳动的波形动画——动效会和 200ms 的结果刷新打架。</div>
+    </div>
+
+    <!-- Browse -->
+    <div class="fr"><div class="cap">浏览 · 图标 + 文字</div>
+      <div class="phone"><div class="br">
+        <div class="rail">
+          <b>常用</b><b>工具</b><b class="on">阅读</b><b>出行</b><b>教学</b><b>社交</b>
+          <div class="last"><b>未分类 <span class="cnt">6</span></b><b>全部</b></div>
+        </div>
+        <div class="list">
+          <div class="row"><span class="ic" style="background:#3E6FB0"></span>微信读书</div>
+          <div class="row"><span class="ic" style="background:#C4763E"></span>静读天下</div>
+          <div class="row"><span class="ic" style="background:#2F2C29"></span>得到</div>
+          <div class="row"><span class="ic" style="background:#4A7C8C"></span>Kindle</div>
+          <div class="row"><span class="ic" style="background:#3E8E5A"></span>豆瓣</div>
+          <div class="row"><span class="ic" style="background:#8C6B4A"></span>句读</div>
+          <div class="row"><span class="ic" style="background:#5A5DA0"></span>多看阅读<span class="sfx">&nbsp;HD</span></div>
+          <div class="count">7 项 · 按使用频率</div>
+        </div>
+      </div></div>
+      <div class="desc">选中分类用 clay-wash 整块底 + clay 字，不用左侧色条——单边色条在 82dp 窄栏里会被误读成滚动条。</div>
+    </div>
+
+    <!-- Viewer -->
+    <div class="fr"><div class="cap">全屏查看器</div>
+      <div class="phone"><div class="vw">
+        <div class="vwtop"><span>3 / 6</span><span style="margin-left:auto">下滑关闭</span></div>
+        <div class="vwimg"></div>
+        <div class="pips"><i></i><i></i><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="vwhint">左右滑切换 · 双击缩放</div>
+      </div></div>
+      <div class="desc">查看器强制深色底，与系统主题无关——照片需要中性环境。该层独占触摸，全局手势挂起。无删除、编辑、分享。</div>
+    </div>
+
+    <!-- 速查表 -->
+    <div class="fr"><div class="cap">手势速查表 · 长按空白</div>
+      <div class="phone"><div class="sh">
+        <div class="shhd">当前手势</div>
+        <div class="gz"><span class="ar">↓</span>搜索<span class="tg">单指</span></div>
+        <div class="gz"><span class="ar">→</span>浏览<span class="tg">单指</span></div>
+        <div class="gz"><span class="ar">←</span>返回上一页<span class="tg">单指</span></div>
+        <div class="gz dim"><span class="ar">↑</span>最近任务<span class="tg">需授权</span></div>
+        <div class="gz dim"><span class="ar">⇊</span>通知栏<span class="tg">需授权</span></div>
+        <div class="gz"><span class="ar">◎</span>双击回首页<span class="tg">空白区</span></div>
+        <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--line-strong);
+             font-size:12.5px;color:var(--clay)">设置</div>
+      </div></div>
+      <div class="desc">未授权的手势灰显并标注，不弹窗。速查表底部是设置的第二入口——右上角对右手拇指太远。</div>
+    </div>
+
+    <!-- 设置 -->
+    <div class="fr"><div class="cap">设置</div>
+      <div class="phone"><div class="st">
+        <div class="sthd">设置</div>
+        <div class="grp">桌面</div>
+        <div class="li">选择默认桌面<span class="rt">当前 Master</span></div>
+        <div class="grp">手势</div>
+        <div class="li">惯用手右侧<div class="sw2 on"><i></i></div></div>
+        <div class="li">无障碍<span class="rt" style="color:var(--clay)">未授权</span></div>
+        <div class="grp">时钟</div>
+        <div class="li"><div class="cb on"></div>星期几</div>
+        <div class="li"><div class="cb on"></div>日期</div>
+        <div class="li"><div class="cb"></div>农历</div>
+        <div class="grp">相册</div>
+        <div class="li">显示模式<div class="seg"><span class="on">海报</span><span>相册墙</span></div></div>
+      </div></div>
+      <div class="desc">只有系统级开关。时间本身不在勾选列表里——它恒显示。排序权重、分类规则一律不进这里。</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 06 图标 -->
+<section>
+  <div class="eyebrow">06 · 应用图标</div>
+  <h2>保留原色，统一形状与明度</h2>
+  <p class="lede">Browse 改用真实应用图标之后，几十个品牌色会同时出现在一列里，和 clay 强调色抢注意力。不要去色——去色后图标不再可辨识，等于白放。要做的是把它们压到同一个视觉层级。</p>
+  <table>
+    <tr><th>规则</th><th>做法</th></tr>
+    <tr><td>统一形状</td><td>全部裁成 <code>22dp</code> 圆角矩形，圆角 <code>6dp</code>。不保留原生自适应图标的圆形/方形差异</td></tr>
+    <tr><td>降饱和</td><td><code>ColorMatrix</code> 饱和度 <code>0.85</code>。够压住艳色，又不影响识别</td></tr>
+    <tr><td>明度对齐</td><td>整体亮度超过 <code>0.82</code> 的图标叠一层 <code>6%</code> 中性灰，防止白底图标在浅色主题里糊掉</td></tr>
+    <tr><td>不加容器</td><td>不给图标加背景块或描边。加了之后一列全是方框，比图标本身更吵</td></tr>
+    <tr><td>让位强调色</td><td>图标列所在的行，选中态只改文字色和行底色，不给图标加任何高亮</td></tr>
+  </table>
+  <p class="note" style="margin-top:22px">这一条是本轮唯一的妥协点：原方案是纯文字目录，靠彻底去色换取安静。改用彩色图标后，识别速度提升是真的，代价是屏幕重新变吵。上面五条规则是把代价压到最低，但守住「强调色只有三处」那条纪律比这五条更关键——只要 clay 还是屏幕上唯一的橙，图标的杂色就退成了背景噪音。</p>
+</section>
+
+<!-- 07 动效 -->
+<section>
+  <div class="eyebrow">07 · 动效</div>
+  <h2>四条，没有第五条</h2>
+  <table>
+    <tr><th>场景</th><th>参数</th></tr>
+    <tr><td>Surface 转场</td><td><code>spring(dampingRatio = .85f, stiffness = 400f)</code>，跟手，不用 tween</td></tr>
+    <tr><td>相框 → 全屏</td><td>共享元素，<code>280ms</code>，<code>FastOutSlowIn</code></td></tr>
+    <tr><td>选中态变色</td><td><code>120ms</code> 线性，无缩放、无涟漪扩散</td></tr>
+    <tr><td>提议卡出现</td><td>淡入 <code>200ms</code> + 上移 <code>8dp</code>，不弹跳</td></tr>
+  </table>
+  <p class="lede" style="margin-top:22px">系统开启「减少动画」时，共享元素过渡降级为直接切换，其余动效全部关闭。首页不允许存在任何常驻动画——包括相册轮播、时钟秒针、图标呼吸。</p>
+</section>
+
+<div class="rule"></div>
+<p style="font-size:12px;color:var(--text3);line-height:1.8">
+色值与度量以本文件为准，与 <code>04-design-system.md</code> 冲突时以本文件为准。<br>
+Compose 主题见同目录 <code>Theme.kt</code>，直接复制进 <code>ui/theme/</code> 即可。
+</p>
+
+</div>
+</body>
+</html>
