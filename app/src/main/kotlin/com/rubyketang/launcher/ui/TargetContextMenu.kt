@@ -2,11 +2,11 @@ package com.rubyketang.launcher.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.rubyketang.launcher.LauncherState
-import com.rubyketang.launcher.engine.tag.TagResolver
 import com.rubyketang.launcher.model.Target
 import com.rubyketang.launcher.ui.theme.Palette
 
@@ -25,6 +25,13 @@ fun TargetContextMenu(
 ) {
     var aliasing by remember { mutableStateOf(false) }
     var evicting by remember { mutableStateOf(false) }
+    var choosingCategory by remember { mutableStateOf(false) }
+    var creatingCategory by remember { mutableStateOf(false) }
+    // 菜单靠 keepOpen 留在原地支持"连续勾多个分类"，但置顶态和分类勾选态都不是从 State/Flow 读的
+    // （isPinned 读的是普通 val 快照，tagsOf 读的是 tagResolver 内部可变 map），Compose 感知不到
+    // 变化、不会自动重组。手动读一下这个计数器建立重组依赖，点击后自增，让菜单里的 ✓/· 立即刷新，
+    // 不用关掉重开才能看到最新状态。
+    var refreshTick by remember { mutableIntStateOf(0) }
     if (aliasing) {
         AliasInput(state, target, palette, onDismiss)
         return
@@ -40,15 +47,56 @@ fun TargetContextMenu(
         )
         return
     }
+    if (creatingCategory) {
+        CustomCategoryInput(
+            palette = palette,
+            onCreate = { name ->
+                runCatching { state.addCustomCategory(name) }
+                    .onSuccess {
+                        // 新建就是为了给这个条目用的，创建成功直接连带勾上，不用回列表再点一次。
+                        state.toggleTag(target, name.trim())
+                        refreshTick++
+                        creatingCategory = false
+                    }
+                    .exceptionOrNull()?.message
+            },
+            onCancel = { creatingCategory = false },
+        )
+        return
+    }
+    if (choosingCategory) {
+        // 11 个分类平铺在主菜单里会把长按弹层撑成接近 20 行、超屏没法滚动，收成二级列表。
+        // §3.2.3 单条编辑：多选勾选，不用确认；keepOpen 让这一层也留在原地方便连续勾多个。
+        // checked 和 toggleTag 的基准都读 state.tagsOf(target.id)（同步、实时），不用 target.tags
+        // 这个长按那一刻的快照——否则连续勾两个会互相覆盖，见 LauncherState.toggleTag 的注释。
+        ContextMenu(
+            title = "改分类",
+            palette = palette,
+            onDismiss = onDismiss,
+            items = run {
+                refreshTick // 建立重组依赖，见上面声明处的说明
+                state.allTagCategories().map { category ->
+                    val checked = category in state.tagsOf(target.id)
+                    MenuItem(category, keepOpen = true, selected = checked) {
+                        state.toggleTag(target, category)
+                        refreshTick++
+                    }
+                } + MenuItem("+ 新建分类…", keepOpen = true) { creatingCategory = true }
+            },
+        )
+        return
+    }
 
     ContextMenu(
         title = target.label,
         palette = palette,
         onDismiss = onDismiss,
         items = buildList {
+            refreshTick // 建立重组依赖，见上面声明处的说明
             add(
                 MenuItem(if (state.isPinned(target.id)) "取消置顶" else "置顶") {
                     state.togglePin(target.id)
+                    refreshTick++
                 }
             )
             add(MenuItem("记住叫法…", keepOpen = true) { aliasing = true })
@@ -58,9 +106,7 @@ fun TargetContextMenu(
                     if (!state.pinRecommendedToFixed(target.id)) evicting = true else onDismiss()
                 }
             )
-            TagResolver.ALL.forEach { category ->
-                add(MenuItem("改分类 → $category") { state.overrideTag(target.id, category) })
-            }
+            add(MenuItem("改分类…", keepOpen = true) { choosingCategory = true })
             state.dndActionsFor(target).forEach { action ->
                 add(MenuItem(action.label) { state.toggleDnd(action.tag) })
             }

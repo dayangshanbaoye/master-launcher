@@ -28,7 +28,8 @@ typealias RecommendedSlotState = Triple<String?, Long, Int>
 data class Snapshot(
     val targets: List<Target>,
     val usage: Map<String, List<UsageEvent>>,
-    val tagOverrides: Map<String, String>,
+    /** §3.2.2/§3.2.3：条目 → 手动分类集合（多归属）。 */
+    val tagOverrides: Map<String, Set<String>>,
     val gestures: Map<String, String>,
     val pins: Set<String>,
     val userAliases: Map<String, List<String>>,
@@ -38,6 +39,8 @@ data class Snapshot(
     val recommendedSlotState: Map<Int, RecommendedSlotState> = emptyMap(),
     val recommendationExcludedUntil: Map<String, Long> = emptyMap(),
     val recommendedOccupants: Map<Int, String> = emptyMap(),
+    /** §3.2.3：用户自建分类，上限 8 个。 */
+    val customCategories: List<String> = emptyList(),
 )
 
 private object LauncherStateSerializer : Serializer<LauncherStateProto> {
@@ -88,7 +91,7 @@ class SnapshotStore(private val context: Context) {
 internal fun LauncherStateProto.toSnapshot() = Snapshot(
     targets = targetsList.map { it.toTarget() },
     usage = usageMap.mapValues { (_, v) -> v.eventsList.map { UsageEvent(it.at, it.signals) } },
-    tagOverrides = tagOverridesMap,
+    tagOverrides = tagOverridesMap.mapValues { it.value.valuesList.toSet() },
     gestures = gesturesMap,
     pins = pinsList.toSet(),
     userAliases = userAliasesMap.mapValues { it.value.valuesList },
@@ -100,6 +103,7 @@ internal fun LauncherStateProto.toSnapshot() = Snapshot(
     },
     recommendationExcludedUntil = recommendationExcludedUntilMap,
     recommendedOccupants = recommendedOccupantsMap,
+    customCategories = customCategoriesList,
 )
 
 internal fun TargetProto.toTarget() = Target(
@@ -134,7 +138,9 @@ internal fun Snapshot.toProto(): LauncherStateProto {
                 .build()
         )
     }
-    builder.putAllTagOverrides(tagOverrides)
+    tagOverrides.forEach { (id, tags) ->
+        builder.putTagOverrides(id, StringListProto.newBuilder().addAllValues(tags).build())
+    }
     builder.putAllGestures(gestures)
     builder.addAllPins(pins)
     userAliases.forEach { (id, aliases) ->
@@ -155,5 +161,6 @@ internal fun Snapshot.toProto(): LauncherStateProto {
     }
     builder.putAllRecommendationExcludedUntil(recommendationExcludedUntil)
     builder.putAllRecommendedOccupants(recommendedOccupants)
+    builder.addAllCustomCategories(customCategories)
     return builder.build()
 }

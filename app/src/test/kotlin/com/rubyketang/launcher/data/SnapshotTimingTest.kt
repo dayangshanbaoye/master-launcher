@@ -29,7 +29,7 @@ class SnapshotTimingTest {
         return Snapshot(
             targets = targets,
             usage = usage,
-            tagOverrides = targets.take(50).associate { it.id to "工具" },
+            tagOverrides = targets.take(50).associate { it.id to setOf("工具") },
             gestures = emptyMap(),
             pins = targets.take(4).map { it.id }.toSet(),
             userAliases = targets.take(20).associate { it.id to listOf("我的叫法") },

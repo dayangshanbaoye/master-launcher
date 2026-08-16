@@ -18,6 +18,9 @@ import com.rubyketang.launcher.data.AndroidContextProvider
 import com.rubyketang.launcher.data.AppSource
 import com.rubyketang.launcher.data.IconCache
 import com.rubyketang.launcher.data.LauncherPreferences
+import com.rubyketang.launcher.data.ShowcaseImageLoader
+import com.rubyketang.launcher.data.ShowcaseMode
+import com.rubyketang.launcher.data.ShowcaseSource
 import com.rubyketang.launcher.data.TwoFingerDownAction
 import com.rubyketang.launcher.data.RecentAppsProvider
 import com.rubyketang.launcher.data.ShortcutSource
@@ -32,6 +35,9 @@ import com.rubyketang.launcher.engine.pinyin.Pinyin4jDict
 import com.rubyketang.launcher.engine.rank.InMemoryUsageStore
 import com.rubyketang.launcher.engine.rank.PinStore
 import com.rubyketang.launcher.engine.rank.RecommendedClusterPolicy
+import com.rubyketang.launcher.engine.showcase.ShowcaseRotationPolicy
+import com.rubyketang.launcher.engine.showcase.ShowcaseRotationSnapshot
+import com.rubyketang.launcher.engine.tag.BehaviorClusterModel
 import com.rubyketang.launcher.engine.tag.TagResolver
 import com.rubyketang.launcher.engine.visibility.TagDndRegistry
 import com.rubyketang.launcher.model.MatchReason
@@ -72,11 +78,19 @@ class LauncherState(private val appContext: Context) {
 
     val tagResolver = TagResolver()
     val usage = InMemoryUsageStore()
+    private val clusterModel = BehaviorClusterModel()
     val gestures = GestureRegistry()
     val dnd = TagDndRegistry()
     val icons = IconCache(appContext)
     val preferences = LauncherPreferences(appContext)
     private val recentApps = RecentAppsProvider(appContext)
+
+    // §2.5 展示区：Source 列图片、ImageLoader 管解码/缓存、RotationPolicy 管海报"当前第几张"。
+    val showcaseSource = ShowcaseSource(appContext)
+    val showcaseImages = ShowcaseImageLoader(appContext)
+    private val showcaseRotation = ShowcaseRotationPolicy().apply { restore(preferences.loadShowcaseRotation()) }
+    val showcasePhotos = MutableStateFlow<List<Uri>>(emptyList())
+    val showcaseIndex = MutableStateFlow(0)
 
     private val pinned = MutableStateFlow<Set<String>>(emptySet())
     private val pins = PinStore { id -> id in pinned.value }
@@ -130,6 +144,7 @@ class LauncherState(private val appContext: Context) {
         snapshots.read()?.let { snap ->
             restoreSnapshot(snap, preloadTargets = true)
         }
+        refreshClusterHints()
         store.rebuild()
         registerPackageCallback()
         refreshAccessibilityStatus()
@@ -137,10 +152,28 @@ class LauncherState(private val appContext: Context) {
         onboardingActive.value = usage.ids().isEmpty() &&
             fixedSlotIds.value.all { it == null } &&
             !preferences.onboardingDone.value
+        refreshShowcasePhotos()
         persist()
     }
 
     fun resolve(query: Query): List<ScoredTarget> = resolver.resolve(query)
+
+    /**
+     * 05-product-spec.md §3.2.1 第 5 层"行为聚类"：每次重建索引前，用当前已知分类
+     * （已解析条目里非"未分类"的那部分，取每条第一个命中的分类作为证据）+ 使用记录
+     * 重新算一遍共现建议，灌进 [tagResolver]，供本轮重建时未分类条目的 autoResolve 消费。
+     * 只是提示来源，不推翻已有分类——推翻与否的规则在 [TagResolver] 自己。
+     */
+    private fun refreshClusterHints() {
+        val usageByTarget = usage.snapshot().mapValues { (_, events) -> events.map { it.atMillis } }
+        val knownTags = store.all()
+            .mapNotNull { target ->
+                target.tags.map { it.name }.firstOrNull { it != TagResolver.FALLBACK }
+                    ?.let { category -> target.id to category }
+            }
+            .toMap()
+        tagResolver.installClusterHints(clusterModel.build(usageByTarget, knownTags))
+    }
 
     fun goHome() {
         surface.value = LauncherSurface.CANVAS
@@ -326,6 +359,67 @@ class LauncherState(private val appContext: Context) {
         defaultLauncherChanged.value = false
     }
 
+    /**
+     * 文件夹变了/冷启动/回到 Canvas 都可能要重新列一次；相册墙不消费轮换状态，只有海报模式需要当前索引。
+     *
+     * §4.5 权限矩阵"读取媒体"：授权可能在系统设置里被用户手动撤销，或者同步导入的快照带着一个
+     * 本机从没授权过的 URI——这两种情况 [ShowcaseSource.photos] 会静默返回空列表，跟"文件夹是空的"
+     * 长得一样，没法把"选择图片文件夹"的引导重新亮出来。
+     *
+     * 判定"真丢了权限"不能只查 [ShowcaseSource.hasAccess]（persistedUriPermissions 这份清单）——
+     * 刚选完文件夹的那一刻，Activity Result 带来的授权就算还没来得及/没能持久化，本次进程内仍然
+     * 有效，query 完全查得到；只看清单会把这种"临时但当下仍有效"的情况误判成"没权限"，把用户刚选的
+     * 文件夹立刻清掉。必须两个信号都为负（真查不到图 且 持久化清单里也没有）才能断定权限真丢了，
+     * 清掉记的 URI，退回 [ShowcaseArea] 里"没选文件夹"那条已有路径——不新增一套 UI 状态，直接复用。
+     */
+    fun refreshShowcasePhotos() {
+        val folder = preferences.showcaseFolderUri.value?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        if (folder == null) {
+            showcasePhotos.value = emptyList()
+            showcaseIndex.value = 0
+            return
+        }
+        scope.launch {
+            val photos = showcaseSource.photos(folder)
+            if (photos.isEmpty() && !showcaseSource.hasAccess(folder)) {
+                preferences.setShowcaseFolderUri(null)
+                showcasePhotos.value = emptyList()
+                showcaseIndex.value = 0
+                return@launch
+            }
+            showcasePhotos.value = photos
+            showcaseIndex.value = showcaseRotation.currentIndex(photos.size)
+        }
+    }
+
+    /** §2.5 海报模式解锁轮换；相册墙"墙本身不翻页、不动"，不调用这个。由 MainActivity 收到
+     *  ACTION_USER_PRESENT 广播时调用，冷启动首次进 Canvas 也算一次"解锁"效果（见 [init]）。 */
+    fun onScreenUnlocked() {
+        if (preferences.showcaseMode.value != ShowcaseMode.POSTER) return
+        val index = showcaseRotation.onUnlock(
+            showcasePhotos.value.size,
+            preferences.showcaseSwitchTiming.value,
+            System.currentTimeMillis(),
+        )
+        showcaseIndex.value = index
+        preferences.saveShowcaseRotation(showcaseRotation.snapshot())
+    }
+
+    /** SAF 文件夹选择器返回后调用：换文件夹意味着旧缩略图缓存全部失效，且轮换从头算起更符合直觉。 */
+    fun setShowcaseFolder(uri: Uri) {
+        showcaseSource.persistPermission(uri)
+        showcaseImages.clearDiskCache()
+        preferences.setShowcaseFolderUri(uri.toString())
+        showcaseRotation.restore(ShowcaseRotationSnapshot(0, -1L))
+        preferences.saveShowcaseRotation(showcaseRotation.snapshot())
+        refreshShowcasePhotos()
+    }
+
+    fun setShowcaseMode(mode: ShowcaseMode) {
+        preferences.setShowcaseMode(mode)
+        canvasSlotVersion.value += 1 // 相册墙模式下应用槽从 8 减到 4，Canvas 需要重新布局
+    }
+
     private fun isCurrentlyDefaultLauncher(): Boolean {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         val resolved = appContext.packageManager.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
@@ -379,12 +473,37 @@ class LauncherState(private val appContext: Context) {
         persist()
     }
 
-    fun overrideTag(targetId: String, category: String) {
-        tagResolver.override(targetId, category)
+    /**
+     * §3.2.3 单条编辑：长按菜单里勾/取消勾一个分类，多选，立即生效。
+     * 基准集合读 [tagsOf]（同步，来自 tagResolver 自己的 overrides），不用调用方传进来的 [target]
+     * 快照——同一次打开的菜单里连续勾两个分类时，target.tags 还是长按那一刻的旧值，拿它当基准会
+     * 让第二次勾选把第一次的结果覆盖掉。
+     */
+    fun toggleTag(target: Target, category: String) {
+        tagResolver.toggleTag(target.id, tagsOf(target.id), category)
         scope.launch {
+            refreshClusterHints()
             store.rebuild() // tag 打在 Target 上，重挂需要重建
             persist()
         }
+    }
+
+    /**
+     * 条目当前的实时分类集合：有手动覆盖记录就读覆盖（tagResolver.overrides() 是同步的，
+     * 不用等 store.rebuild() 那次异步重建），没有覆盖过则退回索引里已经算出来的自动分类。
+     * 长按菜单的勾选状态和 [toggleTag] 的基准集合都用这个，保证两边读的是同一份"当前值"。
+     */
+    fun tagsOf(targetId: String): Set<String> =
+        tagResolver.overrides()[targetId]
+            ?: store.entry(targetId)?.target?.tags?.map { it.name }?.toSet().orEmpty()
+
+    /** 长按菜单渲染多选列表用：固定分类表 + 用户自建分类。 */
+    fun allTagCategories(): List<String> = tagResolver.allCategories()
+
+    /** §3.2.3 自定义分类：创建，上限 8 个；抛异常时调用方（UI）自行提示。 */
+    fun addCustomCategory(name: String) {
+        tagResolver.addCustomCategory(name)
+        persist()
     }
 
     /** P1-4：记住这个叫法。别名写入索引，永久生效。 */
@@ -393,6 +512,7 @@ class LauncherState(private val appContext: Context) {
         if (cleaned.isEmpty()) return
         userAliases.value = userAliases.value + (targetId to ((userAliases.value[targetId] ?: emptyList()) + cleaned))
         scope.launch {
+            refreshClusterHints()
             store.rebuild() // 别名打在 Target.aliases 上，重建进索引
             persist()
         }
@@ -460,17 +580,24 @@ class LauncherState(private val appContext: Context) {
             val remote = snapshots.import(bytes) ?: return@launch
             restoreSnapshot(SnapshotMerger.localFirst(currentSnapshot(), remote), preloadTargets = true)
             // 导入的索引只用来合并用户数据；立刻按本机 LauncherApps 重建，绝不展示远端未安装 app。
+            refreshClusterHints()
             store.rebuild()
             syncEnabled = true
             persist()
         }
     }
 
-    /** Browse 左栏：有内容的分类（按 TagResolver.ALL 的固定顺序）+ 全部。 */
+    /**
+     * Browse 左栏：有内容的分类（固定表按 TagResolver.ALL 的固定顺序，自定义分类跟在后面）+ 全部。
+     * 可见性规则（含 §3.2.3 自定义分类成员数 < 3 不显示）在 [TagResolver.visibleCategories]，
+     * 那边是纯逻辑可测；这里只负责数出每个分类当前有多少条目。
+     */
     fun categories(): List<String> {
         val now = System.currentTimeMillis()
-        val present = store.all().filter { dnd.isVisible(it, now) }.flatMap { it.tags }.map { it.name }.toSet()
-        return TagResolver.ALL.filter { it in present } + TagResolver.ALL_APPS
+        val counts = store.all().filter { dnd.isVisible(it, now) }
+            .flatMap { it.tags }.map { it.name }
+            .groupingBy { it }.eachCount()
+        return tagResolver.visibleCategories(counts) + TagResolver.ALL_APPS
     }
 
     /** Browse"全部"的索引条用：条目的拼音首字母（大写），非字母归 "#"。只读预计算键，不做匹配。 */
@@ -502,11 +629,13 @@ class LauncherState(private val appContext: Context) {
             recommendationExcludedUntil = recommendationExcludedUntil,
             recommendedOccupants = recommendedOccupantIds.value.withIndex()
                 .filter { it.value != null }.associate { it.index to it.value!! },
+            customCategories = tagResolver.customCategories(),
         )
     }
 
     private suspend fun restoreSnapshot(snapshot: Snapshot, preloadTargets: Boolean) {
         tagResolver.restore(snapshot.tagOverrides)
+        tagResolver.restoreCustomCategories(snapshot.customCategories)
         usage.restore(snapshot.usage)
         gestures.restore(snapshot.gestures)
         dnd.restore(snapshot.dndHiddenUntil)

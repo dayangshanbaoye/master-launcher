@@ -31,7 +31,7 @@ class LaunchableActivityMapper(
             kind = Kind.APP,
             label = activity.label,
             aliases = userAliases()[id] ?: emptyList(),
-            tags = setOf(tags.resolve(id, activity.packageName, activity.applicationCategory)),
+            tags = tags.resolve(id, activity.label, activity.packageName, activity.applicationCategory),
             iconUri = "icon://${activity.packageName}/${activity.className}$profileSuffix",
             launch = LaunchSpec(id),
         )

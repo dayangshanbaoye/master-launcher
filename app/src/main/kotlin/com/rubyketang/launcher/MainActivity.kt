@@ -1,7 +1,10 @@
 package com.rubyketang.launcher
 
 import android.os.Bundle
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.app.role.RoleManager
 import android.os.Build
 import android.Manifest
@@ -37,9 +40,15 @@ import com.rubyketang.launcher.ui.browse.BrowseScreen
 import com.rubyketang.launcher.ui.canvas.CanvasScreen
 import com.rubyketang.launcher.ui.search.SearchScreen
 import com.rubyketang.launcher.ui.gesture.launcherGestures
+import com.rubyketang.launcher.ui.showcase.ShowcaseViewerOverlay
+import com.rubyketang.launcher.ui.showcase.ShowcaseViewerRequest
 import com.rubyketang.launcher.ui.theme.LocalUiScale
+import com.rubyketang.launcher.ui.theme.MasterLauncherTheme
 import com.rubyketang.launcher.ui.theme.motionSpec
 import com.rubyketang.launcher.ui.theme.warmPalette
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -50,12 +59,24 @@ class MainActivity : ComponentActivity() {
         if (granted) requestBluetoothEnable()
     }
 
+    /**
+     * 05-product-spec.md §2.5 海报模式"每次解锁"切换时机——启动器不是系统进程，只有前台存活时才
+     * 能收到 ACTION_USER_PRESENT，动态注册（不进 Manifest）就够用：本应用作为默认桌面几乎总在
+     * 前台或刚从后台切回，跟无障碍失效自检（§4.5）同样的覆盖率取舍。
+     */
+    private val unlockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            state.onScreenUnlocked()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         state = LauncherState(applicationContext)
         lifecycleScope.launch {
             state.init()
+            state.onScreenUnlocked() // 冷启动首次进 Canvas 等价于一次"看到展示区"，建立轮换基准
             state.importSharedIntent(intent)
         }
         setContent {
@@ -63,6 +84,12 @@ class MainActivity : ComponentActivity() {
         }
         requestHomeRoleIfNeeded()
         hideNavigationBar()
+        registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT))
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        runCatching { unregisterReceiver(unlockReceiver) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -136,24 +163,31 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit, onSetDefaultLauncher: () -> Unit) {
-    val palette = warmPalette(isSystemInDarkTheme())
+    val dark = isSystemInDarkTheme()
+    val palette = warmPalette(dark)
     val surface by state.surface.collectAsState()
     val scale by state.preferences.fontScale.collectAsState()
-    BackHandler { state.back() }
+    // 05-product-spec.md §2.5 全屏查看器打开时独占触摸：下面这层 BackHandler 优先处理关闭，
+    // 全局手势层和双击回首页那层直接不挂载（见下方 if (viewerRequest == null)），不指望"抢赢"。
+    var viewerRequest by remember { mutableStateOf<ShowcaseViewerRequest?>(null) }
+    BackHandler { if (viewerRequest != null) viewerRequest = null else state.back() }
+    MasterLauncherTheme(dark = dark) {
     CompositionLocalProvider(LocalUiScale provides scale) {
     Box(
         Modifier
             .fillMaxSize()
             .background(palette.bg)
             .safeDrawingPadding()
-            .launcherGestures(state::handleSurfaceGesture),
+            .let { if (viewerRequest == null) it.launcherGestures(state::handleSurfaceGesture) else it },
     ) {
-        // Sheet 上滑跟手：统一 spring，不用 tween
-        Box(
-            Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { state.goHome() }) }
-        )
+        if (viewerRequest == null) {
+            // Sheet 上滑跟手：统一 spring，不用 tween
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures(onDoubleTap = { state.goHome() }) }
+            )
+        }
         AnimatedContent(
             targetState = surface,
             transitionSpec = {
@@ -168,11 +202,23 @@ fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit, onSetDefau
             label = "surface",
         ) { current ->
             when (current) {
-                LauncherSurface.CANVAS -> CanvasScreen(state, palette, onEnableBluetooth, onSetDefaultLauncher)
+                LauncherSurface.CANVAS -> CanvasScreen(
+                    state, palette, onEnableBluetooth, onSetDefaultLauncher,
+                    onOpenShowcaseViewer = { viewerRequest = it },
+                )
                 LauncherSurface.SEARCH -> SearchScreen(state, palette)
                 LauncherSurface.BROWSE -> BrowseScreen(state, palette)
             }
         }
+
+        viewerRequest?.let { request ->
+            ShowcaseViewerOverlay(
+                request = request,
+                imageLoader = state.showcaseImages,
+                onDismiss = { viewerRequest = null },
+            )
+        }
+    }
     }
     }
 }
