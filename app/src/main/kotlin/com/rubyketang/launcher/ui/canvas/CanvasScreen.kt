@@ -1,6 +1,5 @@
 package com.rubyketang.launcher.ui.canvas
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -28,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -48,6 +46,7 @@ import com.rubyketang.launcher.engine.calendar.LunarCalendar
 import com.rubyketang.launcher.engine.canvas.ClockFormatter
 import com.rubyketang.launcher.engine.showcase.ShowcaseSwitchTiming
 import com.rubyketang.launcher.model.Target
+import com.rubyketang.launcher.ui.AppIcon
 import com.rubyketang.launcher.ui.ContextMenu
 import com.rubyketang.launcher.ui.MenuItem
 import com.rubyketang.launcher.ui.TargetContextMenu
@@ -177,19 +176,6 @@ fun CanvasScreen(
                             recommendedColumn(Modifier.weight(1f))
                         }
                     }
-                }
-            }
-
-            // 底部手势提示条（分隔靠一条 0.5dp 线）
-            Column(Modifier.fillMaxWidth().padding(top = 22.dp)) {
-                Box(Modifier.fillMaxWidth().height(Dimens.Border).background(palette.line))
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Hint("↓ 搜索", palette)
-                    Hint("→ 浏览", palette)
-                    Hint("↑ 最近", palette)
                 }
             }
         }
@@ -349,19 +335,13 @@ private fun SlotRow(
     ) {
         if (target != null) {
             val icon = state.icons.icon(target.iconUri)
-            if (icon != null) {
-                Image(
-                    icon.bitmap, null,
-                    Modifier.size(15.dp * uiScale),
-                    colorFilter = if (icon.isMonochrome) ColorFilter.tint(palette.fg2) else null,
-                )
-            } else {
-                Box(
-                    Modifier
-                        .size(15.dp * uiScale)
-                        .border(Dimens.Border, palette.fg2, RoundedCornerShape(4.dp))
-                )
-            }
+            AppIcon(
+                icon = icon,
+                // §4.10 TalkBack：app 槽必须有 contentDescription，手势对无障碍用户不可用时这是唯一入口。
+                contentDescription = target.label,
+                size = 15.dp * uiScale,
+                borderColor = palette.fg2,
+            )
             Spacer(Modifier.size(11.dp * uiScale))
             BasicText(target.label, style = TextStyle(color = palette.fg, fontSize = Type.Item))
         } else {
@@ -798,7 +778,3 @@ private fun HandednessOption(
     )
 }
 
-@Composable
-private fun Hint(text: String, palette: Palette) {
-    BasicText(text, style = TextStyle(color = palette.fg2, fontSize = Type.Secondary))
-}

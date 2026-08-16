@@ -43,6 +43,7 @@ import com.rubyketang.launcher.ui.gesture.launcherGestures
 import com.rubyketang.launcher.ui.showcase.ShowcaseViewerOverlay
 import com.rubyketang.launcher.ui.showcase.ShowcaseViewerRequest
 import com.rubyketang.launcher.ui.theme.LocalUiScale
+import com.rubyketang.launcher.ui.theme.MasterLauncherTheme
 import com.rubyketang.launcher.ui.theme.motionSpec
 import com.rubyketang.launcher.ui.theme.warmPalette
 import androidx.compose.runtime.mutableStateOf
@@ -162,13 +163,15 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit, onSetDefaultLauncher: () -> Unit) {
-    val palette = warmPalette(isSystemInDarkTheme())
+    val dark = isSystemInDarkTheme()
+    val palette = warmPalette(dark)
     val surface by state.surface.collectAsState()
     val scale by state.preferences.fontScale.collectAsState()
     // 05-product-spec.md §2.5 全屏查看器打开时独占触摸：下面这层 BackHandler 优先处理关闭，
     // 全局手势层和双击回首页那层直接不挂载（见下方 if (viewerRequest == null)），不指望"抢赢"。
     var viewerRequest by remember { mutableStateOf<ShowcaseViewerRequest?>(null) }
     BackHandler { if (viewerRequest != null) viewerRequest = null else state.back() }
+    MasterLauncherTheme(dark = dark) {
     CompositionLocalProvider(LocalUiScale provides scale) {
     Box(
         Modifier
@@ -215,6 +218,7 @@ fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit, onSetDefau
                 onDismiss = { viewerRequest = null },
             )
         }
+    }
     }
     }
 }

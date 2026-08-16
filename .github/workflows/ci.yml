@@ -8,6 +8,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write # 发布 debug-build release 需要写权限，其余步骤只读
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -40,3 +43,31 @@ jobs:
             engine/build/reports/tests
             app/build/reports/tests
           retention-days: 7
+
+      # 单测通过后再编译 debug APK，方便真机/云端下载安装做视觉验证——
+      # 这一步跑不动不拦截 CI 结果本身，单测才是硬门槛。
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug --console=plain
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+      # Actions artifact 下载下来是 zip，手机上还要解压一次。裸 APK 挂成 release
+      # 资产，点开就是直接下载 .apk，装的时候少一步。只在本仓库自己的分支上发布
+      # （fork 来的 PR 没有 contents:write，会在这步失败，不影响前面的单测结果）。
+      - name: Publish debug APK as release asset
+        if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          apk=$(ls app/build/outputs/apk/debug/*.apk | head -n1)
+          tag="debug-build"
+          gh release delete "$tag" --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create "$tag" "$apk" \
+            -R "$GITHUB_REPOSITORY" \
+            --title "Debug build ($(date -u +%Y-%m-%dT%H:%M:%SZ))" \
+            --notes "自动构建，来自 ${GITHUB_REF_NAME}@${GITHUB_SHA:0:7}。每次 CI 跑完覆盖，不代表发布版本。"

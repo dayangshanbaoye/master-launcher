@@ -1,7 +1,6 @@
 package com.rubyketang.launcher.ui.browse
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,7 +33,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -49,6 +47,7 @@ import com.rubyketang.launcher.engine.browse.CommonPrefix
 import com.rubyketang.launcher.model.ScoredTarget
 import com.rubyketang.launcher.model.Tag
 import com.rubyketang.launcher.resolver.Query
+import com.rubyketang.launcher.ui.AppIcon
 import com.rubyketang.launcher.ui.TargetContextMenu
 import com.rubyketang.launcher.ui.theme.Dimens
 import com.rubyketang.launcher.ui.theme.LocalUiScale
@@ -153,21 +152,13 @@ fun BrowseScreen(state: LauncherState, palette: Palette) {
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     val icon = state.icons.icon(scored.target.iconUri)
-                                    if (icon != null) {
-                                        Image(
-                                            bitmap = icon.bitmap,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(Dimens.BrowseIconSize * uiScale),
-                                            colorFilter = if (icon.isMonochrome) ColorFilter.tint(palette.fg2) else null,
-                                        )
-                                    } else {
-                                        // 图标加载失败时也保留位置，避免列表文字左右跳动。
-                                        Box(
-                                            Modifier
-                                                .size(Dimens.BrowseIconSize * uiScale)
-                                                .border(Dimens.Border, palette.fg2, RoundedCornerShape(5.dp))
-                                        )
-                                    }
+                                    AppIcon(
+                                        icon = icon,
+                                        // §4.10 TalkBack：app 槽/相框必须有 contentDescription，无障碍手势不可用时这是唯一入口。
+                                        contentDescription = scored.target.label,
+                                        size = Dimens.BrowseIconSize * uiScale,
+                                        borderColor = palette.fg2,
+                                    )
                                     Spacer(Modifier.width(Dimens.BrowseIconGap * uiScale))
                                     BasicText(
                                         withCommonPrefixSuffix(scored, items, i, palette),

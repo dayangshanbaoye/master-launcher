@@ -25,6 +25,7 @@ fun TargetContextMenu(
 ) {
     var aliasing by remember { mutableStateOf(false) }
     var evicting by remember { mutableStateOf(false) }
+    var choosingCategory by remember { mutableStateOf(false) }
     // 菜单靠 keepOpen 留在原地支持"连续勾多个分类"，但置顶态和分类勾选态都不是从 State/Flow 读的
     // （isPinned 读的是普通 val 快照，tagsOf 读的是 tagResolver 内部可变 map），Compose 感知不到
     // 变化、不会自动重组。手动读一下这个计数器建立重组依赖，点击后自增，让菜单里的 ✓/· 立即刷新，
@@ -41,6 +42,28 @@ fun TargetContextMenu(
             onDismiss = onDismiss,
             items = state.fixedSlotTargets().mapIndexedNotNull { index, occupant ->
                 occupant?.let { MenuItem(it.label) { state.setFixedSlot(index, target.id) } }
+            },
+        )
+        return
+    }
+    if (choosingCategory) {
+        // 11 个分类平铺在主菜单里会把长按弹层撑成接近 20 行、超屏没法滚动，收成二级列表。
+        // §3.2.3 单条编辑：多选勾选，不用确认；keepOpen 让这一层也留在原地方便连续勾多个。
+        // checked 和 toggleTag 的基准都读 state.tagsOf(target.id)（同步、实时），不用 target.tags
+        // 这个长按那一刻的快照——否则连续勾两个会互相覆盖，见 LauncherState.toggleTag 的注释。
+        ContextMenu(
+            title = "改分类",
+            palette = palette,
+            onDismiss = onDismiss,
+            items = run {
+                refreshTick // 建立重组依赖，见上面声明处的说明
+                state.allTagCategories().map { category ->
+                    val checked = category in state.tagsOf(target.id)
+                    MenuItem(category, keepOpen = true, selected = checked) {
+                        state.toggleTag(target, category)
+                        refreshTick++
+                    }
+                }
             },
         )
         return
@@ -65,16 +88,7 @@ fun TargetContextMenu(
                     if (!state.pinRecommendedToFixed(target.id)) evicting = true else onDismiss()
                 }
             )
-            // §3.2.3 单条编辑：多选勾选，不用确认；keepOpen 让菜单留在原地方便连续勾多个。
-            // checked 和 toggleTag 的基准都读 state.tagsOf(target.id)（同步、实时），不用 target.tags
-            // 这个长按那一刻的快照——否则连续勾两个会互相覆盖，见 LauncherState.toggleTag 的注释。
-            state.allTagCategories().forEach { category ->
-                val checked = category in state.tagsOf(target.id)
-                add(MenuItem("${if (checked) "✓" else "·"} $category", keepOpen = true) {
-                    state.toggleTag(target, category)
-                    refreshTick++
-                })
-            }
+            add(MenuItem("改分类…", keepOpen = true) { choosingCategory = true })
             state.dndActionsFor(target).forEach { action ->
                 add(MenuItem(action.label) { state.toggleDnd(action.tag) })
             }
