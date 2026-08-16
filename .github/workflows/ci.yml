@@ -40,3 +40,15 @@ jobs:
             engine/build/reports/tests
             app/build/reports/tests
           retention-days: 7
+
+      # 单测通过后再编译 debug APK，方便真机/云端下载安装做视觉验证——
+      # 这一步跑不动不拦截 CI 结果本身，单测才是硬门槛。
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug --console=plain
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
