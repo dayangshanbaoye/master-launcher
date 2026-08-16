@@ -22,12 +22,18 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -44,7 +50,8 @@ import com.rubyketang.launcher.ui.theme.Type
  * `produceState` 起手渲染纯色占位 [Box]，解码完成前不阻塞任何东西；解码本身（含降采样、
  * 磁盘缓存）全在 [com.rubyketang.launcher.data.ShowcaseImageLoader] 里，这里只管排布。
  *
- * 点击进全屏查看器（Wave 5 下一步）；这一版先把点击回调留出接口，[onPhotoClick] 目前接的是空实现。
+ * 点击进全屏查看器（[ShowcaseViewerOverlay]，挂在 MainActivity.LauncherRoot 上，独占触摸）；
+ * [onPhotoClick] 拿到整份照片列表 + 点了第几张 + 那张缩略图当时的屏幕位置，用于共享元素过渡。
  */
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -52,7 +59,7 @@ fun ShowcaseArea(
     state: LauncherState,
     palette: Palette,
     modifier: Modifier = Modifier,
-    onPhotoClick: (index: Int) -> Unit = {},
+    onPhotoClick: (ShowcaseViewerRequest) -> Unit = {},
 ) {
     val mode by state.preferences.showcaseMode.collectAsState()
     val photos by state.showcasePhotos.collectAsState()
@@ -99,12 +106,13 @@ private fun PosterArea(
     palette: Palette,
     photos: List<Uri>,
     modifier: Modifier,
-    onPhotoClick: (index: Int) -> Unit,
+    onPhotoClick: (ShowcaseViewerRequest) -> Unit,
 ) {
     val index by state.showcaseIndex.collectAsState()
     val safeIndex = index.coerceIn(0, photos.lastIndex)
     val uri = photos[safeIndex]
     val density = LocalDensity.current
+    var bounds by remember { mutableStateOf(Rect.Zero) }
 
     BoxWithConstraints(
         modifier
@@ -112,7 +120,8 @@ private fun PosterArea(
             .height(160.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(palette.line)
-            .combinedClickable(onClick = { onPhotoClick(safeIndex) }),
+            .onGloballyPositioned { bounds = it.boundsInRoot() }
+            .combinedClickable(onClick = { onPhotoClick(ShowcaseViewerRequest(photos, safeIndex, bounds)) }),
     ) {
         val widthPx = with(density) { maxWidth.roundToPx() }
         val heightPx = with(density) { maxHeight.roundToPx() }
@@ -136,14 +145,16 @@ private fun WallArea(
     palette: Palette,
     photos: List<Uri>,
     modifier: Modifier,
-    onPhotoClick: (index: Int) -> Unit,
+    onPhotoClick: (ShowcaseViewerRequest) -> Unit,
 ) {
+    // 墙面最多展示 9 张，但全屏查看器翻页范围是整份文件夹，不是只有墙上这几张——
+    // 传完整 photos，index 已经是 photos.take(WALL_MAX_PHOTOS) 里的原始下标（take 保序）。
     val shown = photos.take(WALL_MAX_PHOTOS).withIndex().toList()
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         shown.chunked(WALL_COLUMNS).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { (index, uri) ->
-                    WallTile(state, palette, uri, Modifier.weight(1f)) { onPhotoClick(index) }
+                    WallTile(state, palette, photos, index, uri, Modifier.weight(1f), onPhotoClick)
                 }
                 // 最后一行不满 3 张时补空位，保持宫格对齐而不是最后一张被拉伸变形。
                 repeat(WALL_COLUMNS - row.size) { Box(Modifier.weight(1f)) }
@@ -154,13 +165,23 @@ private fun WallArea(
 
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-private fun WallTile(state: LauncherState, palette: Palette, uri: Uri, modifier: Modifier, onClick: () -> Unit) {
+private fun WallTile(
+    state: LauncherState,
+    palette: Palette,
+    photos: List<Uri>,
+    index: Int,
+    uri: Uri,
+    modifier: Modifier,
+    onPhotoClick: (ShowcaseViewerRequest) -> Unit,
+) {
     val density = LocalDensity.current
+    var bounds by remember { mutableStateOf(Rect.Zero) }
     BoxWithConstraints(
         modifier
             .aspectRatio(1f)
             .border(2.dp, palette.line, RoundedCornerShape(6.dp))
-            .combinedClickable(onClick = onClick),
+            .onGloballyPositioned { bounds = it.boundsInRoot() }
+            .combinedClickable(onClick = { onPhotoClick(ShowcaseViewerRequest(photos, index, bounds)) }),
     ) {
         val sidePx = with(density) { maxWidth.roundToPx() }
         val bitmap by produceState<ImageBitmap?>(initialValue = null, uri, sidePx) {

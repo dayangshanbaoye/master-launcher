@@ -53,6 +53,7 @@ import com.rubyketang.launcher.ui.MenuItem
 import com.rubyketang.launcher.ui.TargetContextMenu
 import com.rubyketang.launcher.ui.gesture.quickReferenceLongPress
 import com.rubyketang.launcher.ui.showcase.ShowcaseArea
+import com.rubyketang.launcher.ui.showcase.ShowcaseViewerRequest
 import com.rubyketang.launcher.ui.theme.Dimens
 import com.rubyketang.launcher.ui.theme.LocalUiScale
 import com.rubyketang.launcher.ui.theme.Palette
@@ -73,7 +74,13 @@ import java.time.ZoneId
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -> Unit, onSetDefaultLauncher: () -> Unit) {
+fun CanvasScreen(
+    state: LauncherState,
+    palette: Palette,
+    onEnableBluetooth: () -> Unit,
+    onSetDefaultLauncher: () -> Unit,
+    onOpenShowcaseViewer: (ShowcaseViewerRequest) -> Unit = {},
+) {
     val uiScale = LocalUiScale.current
     val version by state.indexVersion.collectAsState()
     val dndVersion by state.dndVersion.collectAsState()
@@ -111,7 +118,7 @@ fun CanvasScreen(state: LauncherState, palette: Palette, onEnableBluetooth: () -
         Column(Modifier.fillMaxSize()) {
             ClockArea(state, palette)
 
-            ShowcaseArea(state, palette, Modifier.padding(top = 14.dp))
+            ShowcaseArea(state, palette, Modifier.padding(top = 14.dp), onPhotoClick = onOpenShowcaseViewer)
 
             if (defaultLauncherChanged) {
                 DefaultLauncherBanner(state, palette, onSetDefaultLauncher, Modifier.padding(top = 14.dp))

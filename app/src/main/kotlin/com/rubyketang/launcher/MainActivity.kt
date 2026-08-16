@@ -40,9 +40,14 @@ import com.rubyketang.launcher.ui.browse.BrowseScreen
 import com.rubyketang.launcher.ui.canvas.CanvasScreen
 import com.rubyketang.launcher.ui.search.SearchScreen
 import com.rubyketang.launcher.ui.gesture.launcherGestures
+import com.rubyketang.launcher.ui.showcase.ShowcaseViewerOverlay
+import com.rubyketang.launcher.ui.showcase.ShowcaseViewerRequest
 import com.rubyketang.launcher.ui.theme.LocalUiScale
 import com.rubyketang.launcher.ui.theme.motionSpec
 import com.rubyketang.launcher.ui.theme.warmPalette
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -160,21 +165,26 @@ fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit, onSetDefau
     val palette = warmPalette(isSystemInDarkTheme())
     val surface by state.surface.collectAsState()
     val scale by state.preferences.fontScale.collectAsState()
-    BackHandler { state.back() }
+    // 05-product-spec.md §2.5 全屏查看器打开时独占触摸：下面这层 BackHandler 优先处理关闭，
+    // 全局手势层和双击回首页那层直接不挂载（见下方 if (viewerRequest == null)），不指望"抢赢"。
+    var viewerRequest by remember { mutableStateOf<ShowcaseViewerRequest?>(null) }
+    BackHandler { if (viewerRequest != null) viewerRequest = null else state.back() }
     CompositionLocalProvider(LocalUiScale provides scale) {
     Box(
         Modifier
             .fillMaxSize()
             .background(palette.bg)
             .safeDrawingPadding()
-            .launcherGestures(state::handleSurfaceGesture),
+            .let { if (viewerRequest == null) it.launcherGestures(state::handleSurfaceGesture) else it },
     ) {
-        // Sheet 上滑跟手：统一 spring，不用 tween
-        Box(
-            Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { state.goHome() }) }
-        )
+        if (viewerRequest == null) {
+            // Sheet 上滑跟手：统一 spring，不用 tween
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures(onDoubleTap = { state.goHome() }) }
+            )
+        }
         AnimatedContent(
             targetState = surface,
             transitionSpec = {
@@ -189,10 +199,21 @@ fun LauncherRoot(state: LauncherState, onEnableBluetooth: () -> Unit, onSetDefau
             label = "surface",
         ) { current ->
             when (current) {
-                LauncherSurface.CANVAS -> CanvasScreen(state, palette, onEnableBluetooth, onSetDefaultLauncher)
+                LauncherSurface.CANVAS -> CanvasScreen(
+                    state, palette, onEnableBluetooth, onSetDefaultLauncher,
+                    onOpenShowcaseViewer = { viewerRequest = it },
+                )
                 LauncherSurface.SEARCH -> SearchScreen(state, palette)
                 LauncherSurface.BROWSE -> BrowseScreen(state, palette)
             }
+        }
+
+        viewerRequest?.let { request ->
+            ShowcaseViewerOverlay(
+                request = request,
+                imageLoader = state.showcaseImages,
+                onDismiss = { viewerRequest = null },
+            )
         }
     }
     }
