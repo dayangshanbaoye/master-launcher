@@ -26,6 +26,7 @@ fun TargetContextMenu(
     var aliasing by remember { mutableStateOf(false) }
     var evicting by remember { mutableStateOf(false) }
     var choosingCategory by remember { mutableStateOf(false) }
+    var creatingCategory by remember { mutableStateOf(false) }
     // 菜单靠 keepOpen 留在原地支持"连续勾多个分类"，但置顶态和分类勾选态都不是从 State/Flow 读的
     // （isPinned 读的是普通 val 快照，tagsOf 读的是 tagResolver 内部可变 map），Compose 感知不到
     // 变化、不会自动重组。手动读一下这个计数器建立重组依赖，点击后自增，让菜单里的 ✓/· 立即刷新，
@@ -46,6 +47,23 @@ fun TargetContextMenu(
         )
         return
     }
+    if (creatingCategory) {
+        CustomCategoryInput(
+            palette = palette,
+            onCreate = { name ->
+                runCatching { state.addCustomCategory(name) }
+                    .onSuccess {
+                        // 新建就是为了给这个条目用的，创建成功直接连带勾上，不用回列表再点一次。
+                        state.toggleTag(target, name.trim())
+                        refreshTick++
+                        creatingCategory = false
+                    }
+                    .exceptionOrNull()?.message
+            },
+            onCancel = { creatingCategory = false },
+        )
+        return
+    }
     if (choosingCategory) {
         // 11 个分类平铺在主菜单里会把长按弹层撑成接近 20 行、超屏没法滚动，收成二级列表。
         // §3.2.3 单条编辑：多选勾选，不用确认；keepOpen 让这一层也留在原地方便连续勾多个。
@@ -63,7 +81,7 @@ fun TargetContextMenu(
                         state.toggleTag(target, category)
                         refreshTick++
                     }
-                }
+                } + MenuItem("+ 新建分类…", keepOpen = true) { creatingCategory = true }
             },
         )
         return
