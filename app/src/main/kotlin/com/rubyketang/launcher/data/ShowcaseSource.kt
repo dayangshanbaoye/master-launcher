@@ -35,4 +35,13 @@ class ShowcaseSource(private val context: Context) {
             )
         }
     }
+
+    /**
+     * §4.5 权限矩阵"读取媒体"一行：授权在系统设置里可能被用户手动撤销，或者换机场景下导入的快照
+     * 带着一个本机从没授权过的 URI——这两种情况下 [photos] 会静默返回空列表（DocumentFile 内部
+     * 吞掉 SecurityException），跟"文件夹是空的"这种正常情况长得一样，UI 没法区分，也就没法把
+     * "未授权"的引导重新亮出来。这里直接查 persistedUriPermissions 现存清单，给调用方一个明确信号。
+     */
+    fun hasAccess(folderUri: Uri): Boolean =
+        context.contentResolver.persistedUriPermissions.any { it.uri == folderUri && it.isReadPermission }
 }

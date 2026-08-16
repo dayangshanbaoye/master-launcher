@@ -359,7 +359,19 @@ class LauncherState(private val appContext: Context) {
         defaultLauncherChanged.value = false
     }
 
-    /** 文件夹变了/冷启动/回到 Canvas 都可能要重新列一次；相册墙不消费轮换状态，只有海报模式需要当前索引。 */
+    /**
+     * 文件夹变了/冷启动/回到 Canvas 都可能要重新列一次；相册墙不消费轮换状态，只有海报模式需要当前索引。
+     *
+     * §4.5 权限矩阵"读取媒体"：授权可能在系统设置里被用户手动撤销，或者同步导入的快照带着一个
+     * 本机从没授权过的 URI——这两种情况 [ShowcaseSource.photos] 会静默返回空列表，跟"文件夹是空的"
+     * 长得一样，没法把"选择图片文件夹"的引导重新亮出来。
+     *
+     * 判定"真丢了权限"不能只查 [ShowcaseSource.hasAccess]（persistedUriPermissions 这份清单）——
+     * 刚选完文件夹的那一刻，Activity Result 带来的授权就算还没来得及/没能持久化，本次进程内仍然
+     * 有效，query 完全查得到；只看清单会把这种"临时但当下仍有效"的情况误判成"没权限"，把用户刚选的
+     * 文件夹立刻清掉。必须两个信号都为负（真查不到图 且 持久化清单里也没有）才能断定权限真丢了，
+     * 清掉记的 URI，退回 [ShowcaseArea] 里"没选文件夹"那条已有路径——不新增一套 UI 状态，直接复用。
+     */
     fun refreshShowcasePhotos() {
         val folder = preferences.showcaseFolderUri.value?.let { runCatching { Uri.parse(it) }.getOrNull() }
         if (folder == null) {
@@ -369,6 +381,12 @@ class LauncherState(private val appContext: Context) {
         }
         scope.launch {
             val photos = showcaseSource.photos(folder)
+            if (photos.isEmpty() && !showcaseSource.hasAccess(folder)) {
+                preferences.setShowcaseFolderUri(null)
+                showcasePhotos.value = emptyList()
+                showcaseIndex.value = 0
+                return@launch
+            }
             showcasePhotos.value = photos
             showcaseIndex.value = showcaseRotation.currentIndex(photos.size)
         }
